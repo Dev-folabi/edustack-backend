@@ -26,13 +26,13 @@ export const superAdminSignUp = async (
     const { name, email, password, username } = req.body;
 
     // Check if super admin already exists
-    // const existingSuperAdmin = await prisma.user.findFirst({
-    //   where: { isSuperAdmin: true },
-    // });
+    const existingSuperAdmin = await prisma.user.findFirst({
+      where: { isSuperAdmin: true },
+    });
 
-    // if (existingSuperAdmin) {
-    //   return handleError(res, "Super admin already exists", 400);
-    // }
+    if (existingSuperAdmin) {
+      return handleError(res, "Super admin already exists", 400);
+    }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -107,7 +107,6 @@ export const staffSignUp = async (
       photo_url,
       qualification,
       notes,
-      section_id,
     } = req.body;
 
     // Hash password
@@ -210,16 +209,13 @@ export const studentSignUp = async (
     // Check if student is already enrolled
     const existingStudent = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username },
-          ...(email ? [{ email }] : [])
-        ]
-      }
+        OR: [{ username }, ...(email ? [{ email }] : [])],
+      },
     });
 
     if (existingStudent) {
       return handleError(res, "Username or email already exists", 400);
-  }
+    }
 
     // validate section existence in class
     const section = await prisma.class_Section.findFirst({
@@ -243,7 +239,7 @@ export const studentSignUp = async (
         data: {
           userId: user.id,
           parentId: parentId ? String(parentId) : undefined,
-          dob: new Date(String(dob)) ,
+          dob: new Date(String(dob)),
           admission_date: new Date(String(admission_date)),
           isActive: false,
           ...studentDataWithoutId,
@@ -525,7 +521,7 @@ export const resendOTP = async (
 
     await handleOTP({
       ...otpConfig,
-      email: user.email
+      email: user.email,
     });
 
     res.status(200).json({
@@ -559,7 +555,6 @@ export const requestPasswordReset = async (
     if (!user) {
       return handleError(res, "User not found", 404);
     }
-
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
