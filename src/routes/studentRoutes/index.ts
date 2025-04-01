@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  enrollStudent,
+  // enrollStudent,
   getStudentsBySchool,
   getTransferStudentsBySchool,
   promoteStudent,
@@ -15,7 +15,7 @@ import {
 
 const router = express.Router();
 
-router.post("/enroll", validateEnrollStudent, enrollStudent);
+// router.post("/enroll", validateEnrollStudent, enrollStudent);
 router.put("/promote", validatePromoteStudent, promoteStudent);
 router.put("/transfer", validateTransferStudent, transferStudent);
 

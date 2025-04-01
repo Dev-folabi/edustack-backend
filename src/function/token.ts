@@ -3,12 +3,14 @@ import jwt from "jsonwebtoken";
 
 interface TokenPayload {
   id: string;
+  expire?: string;
 }
 const JWT = process.env.JWT_SECRET_KEY as string;
 
 export const generateToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, JWT, {
-    expiresIn: "1d",
+  const expiresIn = payload.expire || "1d";
+  return jwt.sign({ id: payload.id }, JWT, {
+    expiresIn,
   });
 };
 

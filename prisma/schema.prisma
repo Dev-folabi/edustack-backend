@@ -29,10 +29,11 @@ enum UserRole {
   student
   admin
   teacher
-  accountant
+  finance
   librarian
   parent
   super_admin
+  other
   edustack
 }
 
@@ -55,25 +56,27 @@ model UserSchool {
   id        String    @id @default(cuid())
   userId    String
   schoolId  String
-  role      UserRole?
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  role      UserRole @default(other)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, schoolId])
 }
 
 model User {
   id           String       @id @default(cuid())
-  email        String       @unique
+  email        String?       @unique
   username     String       @unique
   password     String
+  name         String?
   userSchools  UserSchool[]
   student      Student?
   staff        Staff?
   parent       Parent?
   isSuperAdmin Boolean      @default(false)
+  notification Notification[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -134,7 +137,7 @@ model Staff {
   isActive      Boolean   @default(true)
   qualification String?
   notes         String?
-  section_id    String?
+  teacher       Class_Section[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -203,6 +206,8 @@ model Class_Section {
   id        String   @id @default(cuid())
   label     String   @default("a")
   classId   String   @map("class_id")
+  teacherId  String?  
+  class_teacher    Staff?   @relation(fields: [teacherId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -267,4 +272,31 @@ model StudentTransfer {
   toSchool   School        @relation("ToSchoolRelation", fields: [toSchoolId], references: [id])
   class      Classes       @relation(fields: [toClassId], references: [id])
   section    Class_Section @relation(fields: [toSectionId], references: [id])
+}
+
+enum NotificationCategory {
+  ACADEMIC
+  ATTENDANCE
+  DISCIPLINE
+  EXAM
+  FEES
+  HOMEWORK
+  LIBRARY
+  SPORTS
+  EVENTS
+  ANNOUNCEMENT
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  category  NotificationCategory
+  isRead    Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  // Relations
+  user      User                @relation(fields: [userId], references: [id])
 }

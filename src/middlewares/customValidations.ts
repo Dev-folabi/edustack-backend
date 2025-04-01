@@ -9,10 +9,14 @@ export const signUpvalidate = async (
   try {
     const { email, username } = req.body;
 
+    // Check for existing user by email or username
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email }, { username }],
-      },
+        OR: [
+          { email: { equals: email } },
+          { username: { equals: username } }
+        ]
+      }
     });
 
     if (existingUser) {
@@ -23,12 +27,10 @@ export const signUpvalidate = async (
     next();
   } catch (error: any) {
     console.error("Error in signUpvalidate middleware:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Internal server error",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };

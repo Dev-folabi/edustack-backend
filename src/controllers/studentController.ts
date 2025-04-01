@@ -14,63 +14,64 @@ import {
 import { findStudent } from "../function/schoolFunctions";
 import _ from "lodash";
 import { Prisma } from ".prisma/client";
+
 // Enroll Student
-export const enrollStudent = async (
-  req: Request<{}, {}, EnrollStudentRequest>,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { studentId, classId, sectionId } = req.body;
+// export const enrollStudent = async (
+//   req: Request<{}, {}, EnrollStudentRequest>,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const { studentId, classId, sectionId } = req.body;
 
-    // Validate inputs
-    if (!classId || !sectionId) {
-      return handleError(res, "Class ID and Section ID are required", 400);
-    }
+//     // Validate inputs
+//     if (!classId || !sectionId) {
+//       return handleError(res, "Class ID and Section ID are required", 400);
+//     }
 
-    // Validate entities
-    const student = await findStudent(studentId, res);
-    if (!student) return;
+//     // Validate entities
+//     const student = await findStudent(studentId, res);
+//     if (!student) return;
 
-    const classInfo = await findClassWithSections(classId, res);
-    if (!classInfo) return;
+//     const classInfo = await findClassWithSections(classId, res);
+//     if (!classInfo) return;
 
-    const sectionInfo = classInfo.sections.find(
-      (section) => section.id === sectionId
-    );
-    if (!sectionInfo) {
-      return handleError(res, "Section not found in class", 404);
-    }
+//     const sectionInfo = classInfo.sections.find(
+//       (section) => section.id === sectionId
+//     );
+//     if (!sectionInfo) {
+//       return handleError(res, "Section not found in class", 404);
+//     }
 
-    const session = await findActiveSession(res);
-    if (!session) return;
+//     const session = await findActiveSession(res);
+//     if (!session) return;
 
-    const activeTerm = session.terms.find((term) => term.isActive);
-    if (!activeTerm) {
-      return handleError(res, "No active term in session", 400);
-    }
+//     const activeTerm = session.terms.find((term) => term.isActive);
+//     if (!activeTerm) {
+//       return handleError(res, "No active term in session", 400);
+//     }
 
-    // Enroll student
-    const enrolledStudent = await prisma.studentEnrollment.create({
-      data: {
-        studentId: student.id,
-        classId: classInfo.id,
-        sectionId: sectionInfo.id,
-        sessionId: session.id,
-        termId: activeTerm.id,
-        status: "enrolled",
-      },
-    });
+//     // Enroll student
+//     const enrolledStudent = await prisma.studentEnrollment.create({
+//       data: {
+//         studentId: student.id,
+//         classId: classInfo.id,
+//         sectionId: sectionInfo.id,
+//         sessionId: session.id,
+//         termId: activeTerm.id,
+//         status: "enrolled",
+//       },
+//     });
 
-    res.status(200).json({
-      success: true,
-      message: "Student enrolled successfully",
-      data: enrolledStudent,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       message: "Student enrolled successfully",
+//       data: enrolledStudent,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 
 // Get Students by School
 export const getStudentsBySchool = async (

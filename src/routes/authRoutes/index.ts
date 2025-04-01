@@ -4,6 +4,10 @@ import {
   studentSignUp,
   superAdminSignUp,
   userSignIn,
+  verifyEmailOTP,
+  resendOTP,
+  requestPasswordReset,
+  resetPassword,
 } from "../../controllers/authController";
 import { signUpvalidate } from "../../middlewares/customValidations";
 import {
@@ -11,6 +15,10 @@ import {
   validateStaffSignUp,
   validateStudentSignUp,
   validateSuperAdminSignUp,
+  validateResetPassword,
+  validateRequestPasswordReset,
+  validateResendOTP,
+  validateVerifyEmailOTP,
 } from "../../middlewares/Validators";
 
 const router = express.Router();
@@ -23,11 +31,32 @@ router.post(
   superAdminSignUp
 );
 
+// Verify Email OTP
+router.post("/verify-email-otp", validateVerifyEmailOTP, verifyEmailOTP);
+
+// Resend OTP
+router.post("/resend-otp", validateResendOTP, resendOTP);
+
+// Request Password Reset
+router.post(
+  "/request-reset",
+  validateRequestPasswordReset,
+  requestPasswordReset
+);
+
+// Reset Password
+router.post("/reset-password", validateResetPassword, resetPassword);
+
 // Staff Signup
 router.post("/staff-signup", validateStaffSignUp, signUpvalidate, staffSignUp);
 
 // Student Signup
-router.post("/student-signup", validateStudentSignUp, signUpvalidate, studentSignUp);
+router.post(
+  "/student-signup",
+  validateStudentSignUp,
+  signUpvalidate,
+  studentSignUp
+);
 
 // User Sign-in
 router.post("/signin", validateSignIn, userSignIn);

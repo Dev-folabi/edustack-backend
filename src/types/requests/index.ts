@@ -17,7 +17,8 @@ export interface ISchoolRequest {
 
 // User Request
 export interface IUserRequest {
-  email: string;
+  name?: string;
+  email?: string;
   username: string;
   password: string;
   isSuperAdmin?: boolean;

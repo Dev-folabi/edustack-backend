@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { validationResult, body, param } from "express-validator";
+import { validationResult, body, param, query } from "express-validator";
 import validator from "validator";
 
 const handleValidationErrors = (
@@ -99,6 +99,11 @@ export const validateSuperAdminSignUp = [
     .withMessage("Username is required")
     .isString()
     .withMessage("Username must be string"),
+  body("name")
+    .notEmpty()
+    .withMessage("Name is required")
+    .isString()
+    .withMessage("Name must be string"),
 
   handleValidationErrors,
 ];
@@ -200,11 +205,7 @@ export const validateStaffSignUp = [
 
 // Validation for Student Signup
 export const validateStudentSignUp = [
-  body("email")
-    .notEmpty()
-    .withMessage("Email is required")
-    .isEmail()
-    .withMessage("Valid email is required"),
+  body("email").optional().isEmail().withMessage("Valid email is required"),
   body("password")
     .notEmpty()
     .withMessage("Password is required")
@@ -239,7 +240,8 @@ export const validateStudentSignUp = [
       return value ? value.toLowerCase() : value;
     }),
   body("dob")
-    .optional()
+    .notEmpty()
+    .withMessage("Date of birth is required")
     .isDate()
     .withMessage("Date of birth must be a valid date"),
   body("phone").optional().isString().withMessage("Phone must be a string"),
@@ -332,8 +334,79 @@ export const validateStudentSignUp = [
   handleValidationErrors,
 ];
 
-// Validation Sign in
+// Validate Verify Email OTP
+export const validateVerifyEmailOTP = [
+  body("userId")
+    .notEmpty()
+    .withMessage("User ID is required")
+    .isString()
+    .withMessage("User ID must be a string"),
+  body("otp")
+    .notEmpty()
+    .withMessage("OTP is required")
+    .isString()
+    .withMessage("OTP must be a string")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits"),
+  handleValidationErrors,
+];
 
+// Validate Resend OTP
+export const validateResendOTP = [
+  body("type")
+    .trim()
+    .notEmpty()
+    .withMessage("type is required")
+    .isIn(["email_verification", "password_reset"])
+    .withMessage("type can only be email_verification or password_reset"),
+  body("id")
+    .if(body("type").equals("email_verification"))
+    .trim()
+    .notEmpty()
+    .withMessage("Id is required for email verification"),
+  body("email")
+    .if(body("type").equals("password_reset"))
+    .trim()
+    .notEmpty()
+    .withMessage("Email is required for password reset"),
+  handleValidationErrors,
+];
+
+// Validate Request Password Reset
+export const validateRequestPasswordReset = [
+  body("email")
+    .trim()
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Must be a valid email address"),
+  handleValidationErrors,
+];
+
+// Validate Reset Password
+export const validateResetPassword = [
+  body("userId")
+    .notEmpty()
+    .withMessage("User ID is required")
+    .isString()
+    .withMessage("User ID must be a string"),
+  body("otp")
+    .notEmpty()
+    .withMessage("OTP is required")
+    .isString()
+    .withMessage("OTP must be a string")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits"),
+  body("newPassword")
+    .trim()
+    .notEmpty()
+    .withMessage("New password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters long"),
+  handleValidationErrors,
+];
+
+// Validation Sign in
 export const validateSignIn = [
   body("emailOrUsername")
     .trim()
