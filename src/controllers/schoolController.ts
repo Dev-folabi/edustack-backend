@@ -24,6 +24,29 @@ export const createSchool = async (
     if (schoolList.length >= 3)
       return handleError(res, "School limit of 3 reached", 400);
 
+    // Check if user is super admin or admin
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        userSchools: true,
+      },
+    });
+
+    if (!user) {
+      return handleError(res, "User not found", 404);
+    }
+
+    const isAuthorized =
+      user.isSuperAdmin || user.userSchools.some((us) => us.role === "admin");
+
+    if (!isAuthorized) {
+      return handleError(
+        res,
+        "Only super admin and admin can create schools",
+        403
+      );
+    }
+
     // Create school
     const school = await prisma.school.create({
       data: { name, email, phone, address },
@@ -31,7 +54,11 @@ export const createSchool = async (
 
     // Link school to user
     await prisma.userSchool.create({
-      data: { userId, schoolId: school.id },
+      data: {
+        userId,
+        schoolId: school.id,
+        role: user.isSuperAdmin ? "super_admin" : "admin",
+      },
     });
 
     res.status(201).json({
