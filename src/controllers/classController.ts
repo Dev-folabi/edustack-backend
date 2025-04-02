@@ -173,7 +173,7 @@ export const updateClass = async (
 ) => {
   try {
     const { id: classId } = req.params;
-    const { label, section } = req.body;
+    const { label, section, teacherId } = req.body;
 
     const existingClass = await prisma.classes.findUnique({
       where: { id: classId },
@@ -192,11 +192,12 @@ export const updateClass = async (
 
       if (section) {
         const sections = section.split(",").map((sec) => sec.trim());
-        await tx.class_Section.deleteMany({ where: { classId } });
-        await tx.class_Section.createMany({
+        await tx.class_Section.updateMany({
+          where: {classId},
           data: sections.map((sec) => ({
-            label: sec,
+            label: sec.toUpperCase(),
             classId,
+            teacherId: teacherId ? teacherId : undefined
           })),
         });
       }
