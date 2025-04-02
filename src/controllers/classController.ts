@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { classSchoolRequest } from "../types/requests";
 import { handleError } from "../error/errorHandler";
 import prisma from "../prisma";
+import { paginateResults } from "../function/pagination";
 
 // Create Class
 export const createClass = async (
@@ -10,7 +11,7 @@ export const createClass = async (
   next: NextFunction
 ) => {
   try {
-    const { label, section, school_id } = req.body;
+    const { label, section, school_id, teacherId } = req.body;
 
     // Check if the class already exists for any provided school
     const existingClass = await prisma.classes.findFirst({
@@ -61,8 +62,9 @@ export const createClass = async (
           createdClasses.map((createdClass) =>
             tx.class_Section.createMany({
               data: sections.map((sec) => ({
-                label: sec,
+                label: sec.toUpperCase(),
                 classId: createdClass.id,
+                teacherId: teacherId ? teacherId : undefined
               })),
             })
           )
@@ -109,12 +111,19 @@ export const getAllClasses = async (
           },
         },
       },
+      orderBy:{
+        createdAt: 'desc'
+      }
     });
 
     res.status(200).json({
       success: true,
       message: "All classes retrieved successfully",
-      data: classes,
+      data: paginateResults(
+        classes,
+        parseInt(req.query?.page as string, 10),
+        parseInt(req.query?.limit as string, 10)
+      ),
     });
   } catch (error) {
     next(error);

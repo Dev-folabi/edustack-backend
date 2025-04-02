@@ -16,6 +16,115 @@ import sendMail, { createNotification } from "../utils/mail";
 
 const sensitiveRoles = ["super_admin", "admin", "finance"];
 
+// Validate class-section existence
+const validateSection = async (classId: string, sectionId: string) => {
+  return prisma.class_Section.findFirst({
+    where: { id: sectionId, classId },
+  });
+};
+
+// Validate guardian details and return parent ID
+const getOrCreateParent = async (
+  exist_guardian: boolean,
+  guardianData: any
+): Promise<string> => {
+  if (!exist_guardian) return "";
+
+  const { guardian_email, guardian_username, guardian_password } = guardianData;
+
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [{ email: guardian_email }, { username: guardian_username }],
+    },
+    select: { parent: true, password: true },
+  });
+
+  if (existingUser) {
+    const isPasswordCorrect = await bcrypt.compare(
+      guardian_password,
+      existingUser.password
+    );
+    if (isPasswordCorrect) {
+      return existingUser.parent?.id || "";
+    } else {
+      throw new Error("Parent password is incorrect");
+    }
+  } else {
+    throw new Error("Parent not found");
+  }
+};
+
+// Create a new parent account
+const createParentAccount = async (guardianData: any, tx: any) => {
+  const {
+    guardian_email,
+    guardian_username,
+    guardian_password,
+    guardian_name,
+    guardian_phone,
+  } = guardianData;
+
+  const hashedGuardianPassword = await bcrypt.hash(guardian_password, 10);
+
+  const parentUser = await tx.user.create({
+    data: {
+      email: guardian_email,
+      password: hashedGuardianPassword,
+      username: guardian_username,
+    },
+  });
+
+  const parentAccount = await tx.parent.create({
+    data: {
+      userId: parentUser.id,
+      name: guardian_name || "",
+      phone: Array.isArray(guardian_phone)
+        ? guardian_phone.join(", ")
+        : guardian_phone,
+      email: guardian_email,
+    },
+  });
+
+  return parentAccount.id;
+};
+
+// Create the student account
+const createStudent = async (
+  tx: any,
+  userId: string,
+  parentId: string,
+  studentData: any,
+  session: any,
+  termId: string
+) => {
+  const { dob, admission_date, classId, sectionId, ...studentDataWithoutId } =
+    studentData;
+
+  const student = await tx.student.create({
+    data: {
+      userId,
+      parentId,
+      dob: new Date(dob),
+      admission_date: new Date(admission_date),
+      isActive: false,
+      ...studentDataWithoutId,
+    },
+  });
+
+  await tx.studentEnrollment.create({
+    data: {
+      studentId: student.id,
+      classId,
+      sectionId,
+      sessionId: session.id,
+      termId,
+      status: "pending",
+    },
+  });
+
+  return student;
+};
+
 // Super Admin Sign Up
 export const superAdminSignUp = async (
   req: Request<{}, {}, IUserRequest>,
@@ -23,7 +132,7 @@ export const superAdminSignUp = async (
   next: NextFunction
 ) => {
   try {
-    const { name, email, password, username } = req.body;
+    const { email, password, username } = req.body;
 
     // Check if super admin already exists
     const existingSuperAdmin = await prisma.user.findFirst({
@@ -41,7 +150,6 @@ export const superAdminSignUp = async (
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
         email,
         password: hashedPassword,
         username,
@@ -49,7 +157,6 @@ export const superAdminSignUp = async (
       },
       select: {
         id: true,
-        name: true,
         email: true,
         username: true,
         isSuperAdmin: true,
@@ -67,7 +174,9 @@ export const superAdminSignUp = async (
       sendMail({
         email: user.email!,
         subject: "Email Verification OTP",
-        message: `Dear ${user.name}, your email verification code is ${otp}. Please note that this code will expire in 15 minutes. If you did not request this code, please ignore this email.`,
+        message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}. 
+        Please note that this code will expire in 15 minutes. 
+        If you did not request this code, please ignore this email.`,
       }),
     ]);
 
@@ -171,112 +280,89 @@ export const staffSignUp = async (
 };
 
 // Student Sign Up
-
 export const studentSignUp = async (
   req: Request<{}, {}, IStudentRequest>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { email, password, username, schoolId, ...studentData } = req.body;
+    const {
+      email,
+      password,
+      username,
+      schoolId,
+      exist_guardian,
+      ...studentData
+    } = req.body;
 
     // Validate school existence
     const school = await validateSchool(String(schoolId));
+    if (!school) return handleError(res, "School not found", 404);
 
-    if (!school) {
-      return handleError(res, "School not found", 404);
-    }
+    // Validate section existence in class
+    const section = await validateSection(
+      studentData.classId,
+      studentData.sectionId
+    );
+    if (!section) return handleError(res, "Section not found in class", 404);
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const {
-      parentId,
-      dob,
-      admission_date,
-      classId,
-      sectionId,
-      ...studentDataWithoutId
-    } = studentData;
-
+    // Validate session and term
     const session = await findActiveSession(res);
     if (!session) return;
-
     const termId = session.terms.find((term) => term.isActive)?.id;
-    if (!termId) {
-      return handleError(res, "No active term in session", 400);
+    if (!termId) return handleError(res, "No active term in session", 400);
+
+    // Handle password hashing
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Validate guardian if exists
+    let parentId = "";
+    if (exist_guardian) {
+      try {
+        parentId = await getOrCreateParent(exist_guardian, req.body);
+      } catch (error: any) {
+        return handleError(res, error.message, 401);
+      }
     }
 
-    // Check if student is already enrolled
-    const existingStudent = await prisma.user.findFirst({
-      where: {
-        OR: [{ username }, ...(email ? [{ email }] : [])],
-      },
-    });
-
-    if (existingStudent) {
-      return handleError(res, "Username or email already exists", 400);
-    }
-
-    // validate section existence in class
-    const section = await prisma.class_Section.findFirst({
-      where: { id: sectionId, classId },
-    });
-
-    if (!section) {
-      return handleError(res, "Section not found in class", 404);
-    }
-
+    // Database transaction
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: { email, password: hashedPassword, username },
       });
 
-      const userSchools = await tx.userSchool.create({
+      if (!parentId) {
+        parentId = await createParentAccount(req.body, tx);
+      }
+
+      await tx.userSchool.create({
         data: { userId: user.id, schoolId: school.id, role: "student" },
       });
 
-      const student = await tx.student.create({
-        data: {
-          userId: user.id,
-          parentId: parentId ? String(parentId) : undefined,
-          dob: new Date(String(dob)),
-          admission_date: new Date(String(admission_date)),
-          isActive: false,
-          ...studentDataWithoutId,
-        },
-      });
+      const student = await createStudent(
+        tx,
+        user.id,
+        parentId,
+        studentData,
+        session,
+        termId
+      );
 
-      // Enroll student in class
-      await tx.studentEnrollment.create({
-        data: {
-          studentId: student.id,
-          classId,
-          sectionId,
-          sessionId: session?.id,
-          termId: termId,
-          status: "enrolled",
-        },
-      });
-      return { user, userSchools, student };
+      return { user, student };
     });
 
     // Generate token
     const token = generateToken({ id: result.user.id });
 
+    // Prepare response data
     const userData = _.omit(result.user, ["password"]);
 
-    // Success response
     res.status(201).json({
       success: true,
       message: "Student created successfully",
-      data: {
-        userData,
-        userSchools: result.userSchools,
-        student: result.student,
-        token,
-      },
+      data: { userData, student: result.student, token },
     });
-  } catch (error: any) {
+  } catch (error) {
     next(error);
   }
 };
@@ -296,7 +382,6 @@ export const userSignIn = async (
       },
       select: {
         id: true,
-        name: true,
         email: true,
         username: true,
         isSuperAdmin: true,

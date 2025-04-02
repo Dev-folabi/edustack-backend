@@ -12,7 +12,8 @@ export interface ISchoolRequest {
   email: string;
   phone: string[];
   address: string;
-  isActive?: boolean;
+  isActive: boolean;
+  adminId?: string; 
 }
 
 // User Request
@@ -51,8 +52,6 @@ export interface IStudentRequest extends IUserRequest {
   blood_group?: string;
   father_name?: string;
   mother_name?: string;
-  guardian_name?: string;
-  guardian_phone: string[];
   father_occupation?: string;
   mother_occupation?: string;
   isActive?: boolean;
@@ -63,7 +62,12 @@ export interface IStudentRequest extends IUserRequest {
   room_id?: ID;
   added_by?: ID;
   photo_url?: string;
-  parentId?: ID;
+  exist_guardian: boolean;
+  guardian_name?: string;
+  guardian_phone?: string[];
+  guardian_email: string;
+  guardian_username: string;
+  guardian_password: string;
 }
 
 // Staff Request
@@ -120,6 +124,7 @@ export interface classSchoolRequest {
   label: string;
   section: string;
   school_id: string[];
+  teacherId?: string
 }
 
 export interface TransferStudentRequest {

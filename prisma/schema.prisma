@@ -23,6 +23,8 @@ enum EnrollStatus {
   enrolled
   promoted
   transferred
+  pending
+  rejected
 }
 
 enum UserRole {
@@ -70,7 +72,6 @@ model User {
   email        String?       @unique
   username     String       @unique
   password     String
-  name         String?
   userSchools  UserSchool[]
   student      Student?
   staff        Staff?
@@ -85,7 +86,7 @@ model Student {
   id                String   @id @default(cuid())
   userId            String   @unique
   user              User     @relation(fields: [userId], references: [id])
-  admission_number  Int      @unique @default(autoincrement())
+  admission_number  Int?      @unique @default(autoincrement())
   name              String
   gender            Gender
   dob               DateTime
@@ -149,7 +150,6 @@ model Parent {
   name      String
   phone     String?
   email     String?
-  address   String?
   students  Student[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -204,7 +204,7 @@ model Classes {
 
 model Class_Section {
   id        String   @id @default(cuid())
-  label     String   @default("a")
+  label     String   @default("A")
   classId   String   @map("class_id")
   teacherId  String?  
   class_teacher    Staff?   @relation(fields: [teacherId], references: [id])
