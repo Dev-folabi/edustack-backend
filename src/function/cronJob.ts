@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import prisma from "../prisma";
+import { notifyUser } from "../utils/mail";
 
 // Function to update term statuses
 const updateTermStatuses = async () => {
@@ -41,4 +42,23 @@ cron.schedule("0 0 * * *", () => {
   updateTermStatuses().catch((error) => {
     console.error("Error updating term statuses:", error);
   });
+});
+
+cron.schedule("* * * * *", async () => {  // Runs every minute
+
+  const messages = await prisma.scheduled_Message.findMany({
+    where: { scheduledAt: { lte: new Date() } },
+  });
+
+  for (const message of messages) {
+    await notifyUser({
+      userId: message.userId,
+      email: message.email!,
+      title: message.title,
+      message: message.message,
+      category: message.category as any,
+      channels: message.type,
+    });
+
+  }
 });

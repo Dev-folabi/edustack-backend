@@ -12,7 +12,7 @@ import { UserRole } from "@prisma/client";
 import { findActiveSession, validateSchool } from "../function/schoolFunctions";
 import { handleError } from "../error/errorHandler";
 import { deleteCache, getCache, setCache } from "../utils/redis";
-import sendMail, { createNotification } from "../utils/mail";
+import sendMail, { notifyUser } from "../utils/mail";
 
 const sensitiveRoles = ["super_admin", "admin", "finance"];
 
@@ -171,12 +171,14 @@ export const superAdminSignUp = async (
     // Save OTP in Redis with 15 minute expiry
     Promise.all([
       setCache(`email_verification_${user.id}`, otp, 900),
-      sendMail({
-        email: user.email!,
-        subject: "Email Verification OTP",
+      await notifyUser({
+        userId: user.id,
+        email: user.email || "",
+        title: "Email Verification OTP",
         message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}. 
         Please note that this code will expire in 15 minutes. 
         If you did not request this code, please ignore this email.`,
+        channels: ["EMAIL"],
       }),
     ]);
 
@@ -488,11 +490,13 @@ export const verifyEmailOTP = async (
     const token = generateToken({ id: result.id, expire });
 
     // Create notification
-    await createNotification({
+    await notifyUser({
       userId: result.id,
+      email: result.email || "",
       title: "Email Verified",
       message: "Your email has been successfully verified",
-      category: "ANNOUNCEMENT",
+      category: "GENERAL",
+      channels: ["IN_APP"],
     });
 
     const userData = _.omit(result, [
@@ -550,12 +554,14 @@ const handleOTP = async ({
   await setCache(cacheKey, otp, 900);
 
   // Send OTP email
-  await sendMail({
+  await notifyUser({
+    userId,
     email,
-    subject,
+    title: subject,
     message: `Dear ${username || "user"},  Your ${messagePrefix} code is ${otp}. 
     Please note that this code will expire in 15 minutes. 
      If you did not request this code, please ignore this email.`,
+    channels: ["EMAIL"],
   });
 
   return otp;
@@ -702,11 +708,13 @@ export const resetPassword = async (
     await deleteCache(`password_reset_${userId}`);
 
     // Create notification
-    await createNotification({
+    await notifyUser({
       userId,
+      email: "",
       title: "Password Reset",
       message: "Your password was successfully reset",
-      category: "ANNOUNCEMENT",
+      category: "GENERAL",
+      channels: ["IN_APP"],
     });
 
     res.status(200).json({

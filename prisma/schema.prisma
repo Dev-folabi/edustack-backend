@@ -25,6 +25,7 @@ enum EnrollStatus {
   transferred
   pending
   rejected
+  graduated
 }
 
 enum UserRole {
@@ -55,7 +56,7 @@ model School {
 }
 
 model UserSchool {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   schoolId  String
   role      UserRole @default(other)
@@ -68,25 +69,26 @@ model UserSchool {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String?       @unique
-  username     String       @unique
-  password     String
-  userSchools  UserSchool[]
-  student      Student?
-  staff        Staff?
-  parent       Parent?
-  isSuperAdmin Boolean      @default(false)
-  notification Notification[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id               String             @id @default(cuid())
+  email            String?            @unique
+  username         String             @unique
+  password         String
+  userSchools      UserSchool[]
+  student          Student?
+  staff            Staff?
+  parent           Parent?
+  isSuperAdmin     Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  notification     Notification[]
+  message          Scheduled_Message[]
 }
 
 model Student {
   id                String   @id @default(cuid())
   userId            String   @unique
   user              User     @relation(fields: [userId], references: [id])
-  admission_number  Int?      @unique @default(autoincrement())
+  admission_number  Int?     @unique @default(autoincrement())
   name              String
   gender            Gender
   dob               DateTime
@@ -111,8 +113,8 @@ model Student {
   added_by          String?
   photo_url         String?
   isStudent         Boolean  @default(true)
-  parent            Parent?  @relation(fields: [parentId], references: [id])
-  parentId          String?
+  parent            Parent   @relation(fields: [parentId], references: [id])
+  parentId          String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -122,9 +124,9 @@ model Student {
 }
 
 model Staff {
-  id            String    @id @default(cuid())
-  userId        String    @unique
-  user          User      @relation(fields: [userId], references: [id])
+  id            String          @id @default(cuid())
+  userId        String          @unique
+  user          User            @relation(fields: [userId], references: [id])
   name          String
   phone         String[]
   email         String?
@@ -135,12 +137,12 @@ model Staff {
   joining_date  DateTime?
   gender        Gender?
   photo_url     String?
-  isActive      Boolean   @default(true)
+  isActive      Boolean         @default(true)
   qualification String?
   notes         String?
   teacher       Class_Section[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 model Parent {
@@ -149,7 +151,7 @@ model Parent {
   user      User      @relation(fields: [userId], references: [id])
   name      String
   phone     String?
-  email     String?
+  email     String
   students  Student[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -203,13 +205,13 @@ model Classes {
 }
 
 model Class_Section {
-  id        String   @id @default(cuid())
-  label     String   @default("A")
-  classId   String   @map("class_id")
-  teacherId  String?  
-  class_teacher    Staff?   @relation(fields: [teacherId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  label         String   @default("A")
+  classId       String   @map("class_id")
+  teacherId     String?
+  class_teacher Staff?   @relation(fields: [teacherId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   student_enrolled StudentEnrollment[]
   classes          Classes             @relation(fields: [classId], references: [id])
@@ -274,7 +276,10 @@ model StudentTransfer {
   section    Class_Section @relation(fields: [toSectionId], references: [id])
 }
 
+// MESSAGE AND NOTIFICATION
+
 enum NotificationCategory {
+  GENERAL
   ACADEMIC
   ATTENDANCE
   DISCIPLINE
@@ -287,16 +292,45 @@ enum NotificationCategory {
   ANNOUNCEMENT
 }
 
+enum NotificationType {
+  EMAIL
+  IN_APP
+  BOTH
+}
+
+enum MessageStatus {
+  Scheduled
+  SENT
+  FAILED
+}
+
 model Notification {
-  id        String              @id @default(cuid())
+  id        String               @id @default(cuid())
   userId    String
   title     String
   message   String
   category  NotificationCategory
-  isRead    Boolean             @default(false)
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  isRead    Boolean              @default(false)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 
   // Relations
-  user      User                @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Scheduled_Message {
+  id          String               @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  email       String?
+  category    NotificationCategory
+  type        NotificationType
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  status      MessageStatus        @default(Scheduled)
+  createdById String
+  createdBy   User                 @relation(fields: [createdById], references: [id])
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }

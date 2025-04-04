@@ -8,6 +8,7 @@ dotenv.config();
 
 
 
+
 interface MailOptions {
   email: string;
   subject: string;
@@ -39,6 +40,56 @@ const sendMail = async (options: MailOptions): Promise<void> => {
 
 export default sendMail;
 
+
+export interface NotificationOptions {
+  userId: string;
+  title: string;
+  message: string;
+  category: 'GENERAL' | 'ACADEMIC' | 'ATTENDANCE' | 'DISCIPLINE' | 'EXAM' | 'FEES' | 'HOMEWORK' | 'LIBRARY' | 'SPORTS' | 'EVENTS' | 'ANNOUNCEMENT';
+}
+
+
+const createNotification = async (options: NotificationOptions): Promise<void> => {
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: options.userId,
+          title: options.title,
+          message: options.message,
+          category: options.category ?? 'GENERAL',
+        },
+      });
+  
+    } catch (error) {
+      console.error("Error creating in-app notification:", error);
+    }
+  };
+
+export const notifyUser = async ({
+    userId,
+    email,
+    title,
+    message,
+    category = 'GENERAL',
+    channels = ['IN_APP', 'EMAIL']
+  }: {
+    userId: string;
+    email: string;
+    title: string;
+    message: string;
+    category?: NotificationOptions["category"];
+    channels: ("EMAIL" | "IN_APP" | "BOTH")[];
+  }) => {
+    if (channels.includes("IN_APP") || channels.includes("BOTH")) {
+      await createNotification({ userId, title, message, category });
+    }
+  
+    if (channels.includes("EMAIL") || channels.includes("BOTH")) {
+      await sendMail({ email, subject: title, message });
+    }
+  };
+
+  
 // interface MailOptions {
 //   email: string;
 //   subject: string;
@@ -78,22 +129,3 @@ export default sendMail;
 //     throw new Error("Failed to send email");
 //   }
 // };
-
-
-interface NotificationOptions {
-  userId: string;
-  title: string;
-  message: string;
-  category: 'ACADEMIC' | 'ATTENDANCE' | 'DISCIPLINE' | 'EXAM' | 'FEES' | 'HOMEWORK' | 'LIBRARY' | 'SPORTS' | 'EVENTS' | 'ANNOUNCEMENT';
-}
-
-export const createNotification = async (options: NotificationOptions): Promise<void> => {
-  await prisma.notification.create({
-    data: {
-      userId: options.userId,
-      title: options.title,
-      message: options.message,
-      category: options.category || 'ANNOUNCEMENT',
-    }
-  });
-};
