@@ -341,13 +341,19 @@ export const validateStudentSignUp = [
     .withMessage("exist_guardian must be a boolean"),
 
   body("guardian_name")
-    .optional()
+    .if((value, { req }) => req.body.exist_guardian === false)
+    .notEmpty()
+    .withMessage("Guardian's name is required")
     .isString()
     .withMessage("Guardian's name must be a string")
-    .trim(),
+    .trim()
+    .bail()
+    .optional(),
 
   body("guardian_phone")
-    .optional()
+    .if((value, { req }) => req.body.exist_guardian === false)
+    .notEmpty()
+    .withMessage("Guardian phone is required")
     .isArray()
     .withMessage("Guardian phone must be an array of strings")
     .custom((value: string[]) => {
@@ -355,7 +361,9 @@ export const validateStudentSignUp = [
         throw new Error("All guardian phone numbers must be strings");
       }
       return true;
-    }),
+    })
+    .bail()
+    .optional(),
 
   body("guardian_email")
     .notEmpty()
@@ -593,7 +601,7 @@ export const validateCreateClass = [
       }
       return true;
     }),
-    body("teacherId")
+  body("teacherId")
     .optional()
     .isString()
     .withMessage("teacher ID must be an string"),
@@ -712,5 +720,87 @@ export const validatePromoteStudent = [
     .withMessage("Section ID is required")
     .isString()
     .withMessage("Section ID must be a string"),
+  handleValidationErrors,
+];
+
+// Validation for sending bulk messages
+export const validateSendBulkMessage = [
+  body("recipients")
+    .notEmpty()
+    .withMessage("Recipients are required")
+    .isObject()
+    .withMessage("Recipients must be an object"),
+  body("recipients.staffIds")
+    .optional()
+    .isArray()
+    .withMessage("Staff IDs must be an array of strings")
+    .custom((value: unknown[]) => {
+      if (value && !value.every((item) => typeof item === "string")) {
+        throw new Error("Each staffId ID must be a string");
+      }
+      return true;
+    }),
+  body("recipients.studentIds")
+    .optional()
+    .isArray()
+    .withMessage("Student IDs must be an array of strings")
+    .custom((value: unknown[]) => {
+      if (value && !value.every((item) => typeof item === "string")) {
+        throw new Error("Each student ID must be a string");
+      }
+      return true;
+    }),
+  body("recipients.classId")
+    .optional()
+    .isString()
+    .withMessage("Class ID must be a string"),
+  body("recipients.schoolId")
+    .optional()
+    .isString()
+    .withMessage("School ID must be a string"),
+  body("title")
+    .notEmpty()
+    .withMessage("Title is required")
+    .isString()
+    .withMessage("Title must be a string"),
+  body("message")
+    .notEmpty()
+    .withMessage("Message is required")
+    .isString()
+    .withMessage("Message must be a string"),
+  body("category")
+    .notEmpty()
+    .withMessage("Category is required")
+    .isString()
+    .withMessage("Category must be a string")
+    .customSanitizer((value) => value.toUpperCase()),
+  body("channels")
+    .isArray()
+    .withMessage("Channels must be an array")
+    .isIn(["EMAIL", "IN_APP", "BOTH"])
+    .withMessage("Channels must include 'EMAIL', 'IN_APP', or 'BOTH'"),
+  body("scheduledAt")
+    .optional()
+    .isISO8601()
+    .withMessage("Scheduled time must be a valid ISO 8601 date"),
+  handleValidationErrors,
+];
+
+// Validation for fetching notifications for a user
+export const validateGetNotificationsForUser = [
+  query("category")
+    .optional()
+    .isString()
+    .withMessage("Category must be a string")
+    .customSanitizer((value) => value.toUpperCase()),
+  query("status").optional().isString().withMessage("Status must be a string"),
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Start date must be a valid ISO 8601 date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("End date must be a valid ISO 8601 date"),
   handleValidationErrors,
 ];

@@ -1,63 +1,104 @@
 import { Request, Response } from "express";
 import prisma from "../prisma";
-import { NotificationOptions, notifyUser } from "../utils/mail";
+import { NotificationOptions, notifyUser } from "../utils/notification";
 
+type Recipient = {
+  id: string;
+  email: string;
+  role: "student" | "staff";
+};
+
+const formatStudents = (students: any[]): Recipient[] =>
+  students.map((s) => ({
+    id: s.user.id,
+    email: s.parent?.email || s.email,
+    role: "student",
+  }));
+
+const formatStaff = (staff: any[]): Recipient[] =>
+  staff.map((s) => ({
+    id: s.userId,
+    email: s.email,
+    role: "staff",
+  }));
 
 const getTargetRecipients = async (filter: {
   studentIds?: string[];
   staffIds?: string[];
   classId?: string;
+  sectionId?: string;
   schoolId?: string;
-}) => {
+}): Promise<Recipient[]> => {
+  let recipients: Recipient[] = [];
 
+  // Get specific students
   if (filter.studentIds) {
-    const existingStudents = await prisma.studentEnrollment.findMany({
-      where: { studentId: { in: filter.studentIds }, status: "enrolled" },
-      select: { studentId: true },
-    });
     const students = await prisma.student.findMany({
-      where: {id: {in: existingStudents.map(s => s.studentId)}},
-      select: { id: true, parent: true, email: true }
-    })
-
-    return students.map(s => ({ id: s.id, email: s.parent ? s.parent.email : s.email }));
+      where: {
+        id: { in: filter.studentIds },
+        student_enrolled: { some: { status: "enrolled" } },
+      },
+      include: { user: true, parent: true },
+    });
+    recipients.push(...formatStudents(students));
   }
 
-  if (filter.classId) {
-    const existingStudents = await prisma.studentEnrollment.findMany({
-      where: { OR: [{ classId: filter.classId }, { sectionId: filter.classId }], status: "enrolled" },
-      select: { studentId: true },
-    });
+  // Get students by class or section
+  if (filter.classId || filter.sectionId) {
     const students = await prisma.student.findMany({
-      where: {id: {in: existingStudents.map(s => s.studentId)}},
-      select: { id: true, parent: true, email: true }
-    })
-
-    return students.map(s => ({ id: s.id, email: s.parent ? s.parent.email : s.email }));
+      where: {
+        student_enrolled: {
+          some: {
+            ...(filter.classId && { classId: filter.classId }),
+            ...(filter.sectionId && { sectionId: filter.sectionId }),
+            status: "enrolled",
+          },
+        },
+      },
+      include: { user: true, parent: true },
+    });
+    recipients.push(...formatStudents(students));
   }
 
+  // Get students in school
   if (filter.schoolId) {
-    const existingStudents = await prisma.userSchool.findMany({
-      where: { schoolId: filter.schoolId, role: "student" },
-      select: { user: true },
+    const studentLinks = await prisma.userSchool.findMany({
+      where: {
+        schoolId: filter.schoolId,
+        role: "student",
+      },
+      select: { userId: true },
     });
 
-    const studentIds = existingStudents.map(s => s.user.id);
-    const enrolledStudents = await prisma.studentEnrollment.findMany({
-      where: { studentId: { in: studentIds }, status: "enrolled" },
-      select: { studentId: true },
-    });
-
-    const enrolledStudentIds = enrolledStudents.map(s => s.studentId);
-    const students = await prisma.student.findMany({
-      where: { id: { in: enrolledStudentIds } },
-      select: { id: true, parent: true, email: true },
-    });
-
-    return students.map(s => ({ id: s.id, email: s.parent ? s.parent.email : s.email }));
+    if (studentLinks.length > 0) {
+      const enrolledStudents = await prisma.student.findMany({
+        where: {
+          userId: { in: studentLinks.map((s) => s.userId) },
+          student_enrolled: { some: { status: "enrolled" } },
+        },
+        include: { user: true, parent: true },
+      });
+      recipients.push(...formatStudents(enrolledStudents));
+    }
   }
 
-  return [];
+  // Get staff by ID
+  if (filter.staffIds) {
+    const staff = await prisma.staff.findMany({
+      where: {
+        id: { in: filter.staffIds },
+      },
+      select: { userId: true, email: true },
+    });
+    recipients.push(...formatStaff(staff));
+  }
+
+  // Optional: Remove duplicates by email
+  const uniqueRecipients = Array.from(
+    new Map(recipients.map((r) => [r.email, r])).values()
+  );
+
+  return uniqueRecipients;
 };
 
 export interface SendBulkMessage {
@@ -70,35 +111,125 @@ export interface SendBulkMessage {
   message: string;
   category: NotificationOptions["category"];
   channels: ("EMAIL" | "IN_APP" | "BOTH")[];
-  scheduledAt? : Date;
+  scheduledAt?: Date;
 }
 
-
 export const sendBulkMessages = async (req: Request, res: Response) => {
-  const { recipients, title, message, category, channels, scheduledAt } = req.body as SendBulkMessage
+  try {
+    const { recipients, title, message, category, channels, scheduledAt } =
+      req.body as SendBulkMessage;
 
-  const users = await getTargetRecipients(recipients)
+    const users = await getTargetRecipients(recipients);
 
-  if(!scheduledAt){
-    for (const user of users) {
-      await notifyUser({
-        userId: user.id,
-        email: user.email!,
-        title,
-        message,
-        category,
-        channels,
+    const studentRecipients = users.filter(
+      (u) => u.role === "student" && u.email
+    );
+    const staffRecipients = users.filter((u) => u.role === "staff" && u.email);
+
+    // Helper to schedule or send
+    const processRecipients = async (
+      group: typeof users,
+      role: "student" | "staff"
+    ) => {
+      if (scheduledAt) {
+        await prisma.scheduled_Message.createMany({
+          data: group.map((user) => ({
+            userId: user.id,
+            title: `[${role.toUpperCase()}] ${title}`,
+            email: user.email!,
+            message,
+            category,
+            type: channels.length > 1 ? "BOTH" : channels[0],
+            createdById: (req as any).user,
+            scheduledAt,
+          })),
+        });
+      } else {
+        await Promise.all(
+          group.map((user) =>
+            notifyUser({
+              userId: user.id,
+              email: user.email!,
+              title: `[${role.toUpperCase()}] ${title}`,
+              message,
+              category,
+              channels,
+            })
+          )
+        );
+      }
+    };
+
+    // Process each group
+    await processRecipients(studentRecipients, "student");
+    await processRecipients(staffRecipients, "staff");
+
+    res.status(200).json({
+      success: true,
+      message: scheduledAt
+        ? "Messages scheduled successfully!"
+        : "Messages sent successfully!",
     });
-
+    return;
+  } catch (error: any) {
+    console.error("Error in sendBulkMessages:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while sending messages",
+    });
+    return;
   }
-
-  return res.status(200).json({ message: "Messages sent successfully!" });
 };
 
+export const getNotificationsForUser = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user;
+    const { category, status, startDate, endDate } = req.query;
 
-export const getNotificationsForUser = async (userId: string) => {
-  return prisma.notification.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-  });
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    const filters: any = {
+      userId,
+    };
+
+    if (category) {
+      filters.category = category;
+    }
+
+    if (status === "read") {
+      filters.isRead = true;
+    } else if (status === "unread") {
+      filters.isRead = false;
+    }
+
+    if (startDate || endDate) {
+      filters.createdAt = {};
+      if (startDate) filters.createdAt.gte = new Date(startDate as string);
+      if (endDate) filters.createdAt.lte = new Date(endDate as string);
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: filters,
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Notifications fetched successfully",
+      data: notifications,
+    });
+    return;
+  } catch (error) {
+    console.error("Error fetching notifications for user:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching notifications",
+    });
+    return;
+  }
 };

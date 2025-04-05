@@ -12,7 +12,7 @@ import { UserRole } from "@prisma/client";
 import { findActiveSession, validateSchool } from "../function/schoolFunctions";
 import { handleError } from "../error/errorHandler";
 import { deleteCache, getCache, setCache } from "../utils/redis";
-import sendMail, { notifyUser } from "../utils/mail";
+import { notifyUser } from "../utils/notification";
 
 const sensitiveRoles = ["super_admin", "admin", "finance"];
 
@@ -68,9 +68,9 @@ const createParentAccount = async (guardianData: any, tx: any) => {
 
   const parentUser = await tx.user.create({
     data: {
-      email: guardian_email,
       password: hashedGuardianPassword,
       username: guardian_username,
+      email: guardian_email,
     },
   });
 
@@ -97,8 +97,14 @@ const createStudent = async (
   session: any,
   termId: string
 ) => {
-  const { dob, admission_date, classId, sectionId, ...studentDataWithoutId } =
-    studentData;
+  const {
+    dob,
+    admission_date,
+    classId,
+    sectionId,
+    isActive,
+    ...studentDataWithoutId
+  } = studentData;
 
   const student = await tx.student.create({
     data: {
@@ -106,7 +112,7 @@ const createStudent = async (
       parentId,
       dob: new Date(dob),
       admission_date: new Date(admission_date),
-      isActive: false,
+      isActive: isActive ?? false,
       ...studentDataWithoutId,
     },
   });
@@ -118,7 +124,7 @@ const createStudent = async (
       sectionId,
       sessionId: session.id,
       termId,
-      status: "pending",
+      status: "enrolled",
     },
   });
 
@@ -294,6 +300,11 @@ export const studentSignUp = async (
       username,
       schoolId,
       exist_guardian,
+      guardian_email,
+      guardian_username,
+      guardian_password,
+      guardian_name,
+      guardian_phone,
       ...studentData
     } = req.body;
 
@@ -334,7 +345,14 @@ export const studentSignUp = async (
       });
 
       if (!parentId) {
-        parentId = await createParentAccount(req.body, tx);
+        const guardianData = {
+          guardian_email,
+          guardian_username,
+          guardian_password,
+          guardian_name,
+          guardian_phone,
+        };
+        parentId = await createParentAccount(guardianData, tx);
       }
 
       await tx.userSchool.create({
@@ -660,12 +678,14 @@ export const requestPasswordReset = async (
     await setCache(`password_reset_${user.id}`, otp, 900);
 
     // Send password reset email
-    await sendMail({
+    await notifyUser({
+      userId: user.id,
       email: user.email!,
-      subject: "Password Reset OTP",
+      title: "Password Reset OTP",
       message: `Dear ${user.username || "user"}, 
       Your password reset code is ${otp}. Please note that this code will expire in 15 minutes. 
       If you did not request this code, please ignore this email.`,
+      channels: ["EMAIL"],
     });
 
     res.status(200).json({

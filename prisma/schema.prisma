@@ -69,19 +69,19 @@ model UserSchool {
 }
 
 model User {
-  id               String             @id @default(cuid())
-  email            String?            @unique
-  username         String             @unique
-  password         String
-  userSchools      UserSchool[]
-  student          Student?
-  staff            Staff?
-  parent           Parent?
-  isSuperAdmin     Boolean            @default(false)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  notification     Notification[]
-  message          Scheduled_Message[]
+  id           String              @id @default(cuid())
+  email        String?             @unique
+  username     String              @unique
+  password     String
+  userSchools  UserSchool[]
+  student      Student?
+  staff        Staff?
+  parent       Parent?
+  isSuperAdmin Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  notification Notification[]
+  message      Scheduled_Message[]
 }
 
 model Student {
@@ -100,8 +100,6 @@ model Student {
   blood_group       String?
   father_name       String?
   mother_name       String?
-  guardian_name     String?
-  guardian_phone    String[]
   father_occupation String?
   mother_occupation String?
   isActive          Boolean  @default(true)

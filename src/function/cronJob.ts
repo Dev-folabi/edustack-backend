@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import prisma from "../prisma";
-import { notifyUser } from "../utils/mail";
+import { notifyUser } from "../utils/notification";
 
 // Function to update term statuses
 const updateTermStatuses = async () => {
@@ -44,21 +44,40 @@ cron.schedule("0 0 * * *", () => {
   });
 });
 
-cron.schedule("* * * * *", async () => {  // Runs every minute
+cron.schedule("* * * * *", async () => {
 
-  const messages = await prisma.scheduled_Message.findMany({
-    where: { scheduledAt: { lte: new Date() } },
-  });
+  const batchSize = 50; // Process 50 messages at a time
+  let messages;
 
-  for (const message of messages) {
-    await notifyUser({
-      userId: message.userId,
-      email: message.email!,
-      title: message.title,
-      message: message.message,
-      category: message.category as any,
-      channels: message.type,
+  do {
+    messages = await prisma.scheduled_Message.findMany({
+      where: { scheduledAt: { lte: new Date() }, status: "Scheduled" },
+      take: batchSize,
     });
 
-  }
+    for (const message of messages) {
+      try {
+        await notifyUser({
+          userId: message.userId,
+          email: message.email! || "",
+          title: message.title,
+          message: message.message,
+          category: message.category,
+          channels: [message.type],
+        });
+
+        await prisma.scheduled_Message.update({
+          where: { id: message.id },
+          data: { status: "SENT" },
+        });
+
+        console.log(`Sent scheduled message to ${message.email}`);
+      } catch (error) {
+        console.error(
+          `Failed to send scheduled message to ${message.email}:`,
+          error
+        );
+      }
+    }
+  } while (messages.length === batchSize);
 });
