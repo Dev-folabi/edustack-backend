@@ -548,5 +548,74 @@ export const getTransferStudentsBySchool = async (
 };
 
 
+// export const updateStudent = async (req: Request, res: Response) => {
+//   const { studentId } = req.params;
+//   const data = req.body;
 
+//   try {
+//     // Check if student exists
+//     const student = await prisma.student.findUnique({
+//       where: { id: studentId },
+//       include: { parent: { include: { user: true } } },
+//     });
 
+//     if (!student) {
+//       return res.status(404).json({ message: "Student not found" });
+//     }
+
+//     // Extract parent payload if exists
+//     const parentPayload = data.parent;
+//     delete data.parent; // prevent nested update on parent with Prisma update
+
+//     // Filter out only keys that exist in schema for Student
+//     const allowedFields = [
+//       "name", "gender", "dob", "phone", "email", "address", "religion", "blood_group",
+//       "father_name", "mother_name", "father_occupation", "mother_occupation",
+//       "city", "state", "country", "photo_url", "isActive", "isStudent"
+//     ];
+
+//     const studentUpdateData: Record<string, any> = {};
+//     allowedFields.forEach((key) => {
+//       if (key in data) studentUpdateData[key] = data[key];
+//     });
+
+//     // Prepare update promises
+//     const updateOps: Promise<any>[] = [];
+
+//     // Update student details
+//     if (Object.keys(studentUpdateData).length > 0) {
+//       updateOps.push(
+//         prisma.student.update({
+//           where: { id: studentId },
+//           data: studentUpdateData,
+//         })
+//       );
+//     }
+
+//     // Update parent if payload is provided
+//     if (parentPayload && student.parentId) {
+//       const { name, email, phone } = parentPayload;
+//       const parentUpdateData: Record<string, any> = {};
+
+//       if (name) parentUpdateData.name = name;
+//       if (email) parentUpdateData.email = email;
+//       if (phone) parentUpdateData.phone = phone;
+
+//       if (Object.keys(parentUpdateData).length > 0) {
+//         updateOps.push(
+//           prisma.parent.update({
+//             where: { id: student.parentId },
+//             data: parentUpdateData,
+//           })
+//         );
+//       }
+//     }
+
+//     await Promise.all(updateOps);
+
+//     return res.status(200).json({ message: "Student updated successfully" });
+//   } catch (error: any) {
+//     console.error("Update Student Error:", error);
+//     return res.status(500).json({ message: error.message || "Something went wrong" });
+//   }
+// };
