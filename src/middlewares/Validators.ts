@@ -39,6 +39,12 @@ export const validateCreateSchool = [
       return true;
     }),
   body("address").notEmpty().withMessage("Address is required"),
+  body("isActive").isBoolean().withMessage("isActive must be a boolean"),
+  body("adminId")
+    .optional()
+    .isString()
+    .withMessage("Admin ID must be a string"),
+
   handleValidationErrors,
 ];
 
@@ -205,64 +211,70 @@ export const validateStaffSignUp = [
 
 // Validation for Student Signup
 export const validateStudentSignUp = [
-  body("email").optional().isEmail().withMessage("Valid email is required"),
-  body("password")
-    .notEmpty()
-    .withMessage("Password is required")
-    .isLength({ min: 6 })
-    .withMessage("Password must be at least 6 characters long"),
-  body("username")
-    .notEmpty()
-    .withMessage("Username is required")
-    .isString()
-    .withMessage("Username must be string"),
   body("schoolId")
     .notEmpty()
     .withMessage("School ID is required")
     .isString()
-    .withMessage("School ID must be string"),
-  body("classId")
-    .notEmpty()
-    .withMessage("Class ID is required")
-    .isString()
-    .withMessage("Class ID must be a string"),
+    .withMessage("School ID must be a string"),
+
   body("name")
     .notEmpty()
     .withMessage("Name is required")
     .isString()
-    .withMessage("Name must be a string"),
+    .withMessage("Name must be a string")
+    .trim(),
+
   body("gender")
     .notEmpty()
     .withMessage("Gender is required")
     .isString()
     .withMessage("Gender must be a string")
-    .customSanitizer((value) => {
-      return value ? value.toLowerCase() : value;
-    }),
+    .customSanitizer((value) => value.toLowerCase().trim()),
+
   body("dob")
     .notEmpty()
     .withMessage("Date of birth is required")
-    .isDate()
+    .isISO8601()
     .withMessage("Date of birth must be a valid date"),
+
   body("phone").optional().isString().withMessage("Phone must be a string"),
+
   body("address")
     .notEmpty()
     .withMessage("Address is required")
     .isString()
-    .withMessage("Address must be a string"),
-  body("admissionDate")
+    .withMessage("Address must be a string")
+    .trim(),
+
+  body("admission_date")
     .optional()
-    .isDate()
+    .isISO8601()
     .withMessage("Admission date must be a valid date"),
+
+  body("classId")
+    .notEmpty()
+    .withMessage("Class ID is required")
+    .isString()
+    .withMessage("Class ID must be a string"),
+
+  body("sectionId")
+    .notEmpty()
+    .withMessage("Section ID is required")
+    .isString()
+    .withMessage("Section ID must be a string"),
+
   body("religion")
     .notEmpty()
     .withMessage("Religion is required")
     .isString()
-    .withMessage("Religion must be a string"),
+    .withMessage("Religion must be a string")
+    .trim(),
+
   body("blood_group")
     .optional()
     .isString()
     .withMessage("Blood group must be a string"),
+
   body("father_name")
     .optional()
     .isString()
@@ -271,21 +283,7 @@ export const validateStudentSignUp = [
     .optional()
     .isString()
     .withMessage("Mother's name must be a string"),
-  body("guardian_name")
-    .optional()
-    .isString()
-    .withMessage("Guardian's name must be a string"),
-  body("guardian_phone")
-    .notEmpty()
-    .withMessage("guardian phone is required")
-    .isArray()
-    .withMessage("Guardian phone must be an array of strings")
-    .custom((value: string[]) => {
-      if (!value.every((v) => typeof v === "string")) {
-        throw new Error("All guardian phone numbers must be strings");
-      }
-      return true;
-    }),
+
   body("father_occupation")
     .optional()
     .isString()
@@ -294,25 +292,33 @@ export const validateStudentSignUp = [
     .optional()
     .isString()
     .withMessage("Mother's occupation must be a string"),
+
   body("isActive")
     .optional()
     .isBoolean()
     .withMessage("isActive must be a boolean"),
+
   body("city")
     .notEmpty()
     .withMessage("City is required")
     .isString()
-    .withMessage("City must be a string"),
+    .withMessage("City must be a string")
+    .trim(),
+
   body("state")
     .notEmpty()
     .withMessage("State is required")
     .isString()
-    .withMessage("State must be a string"),
+    .withMessage("State must be a string")
+    .trim(),
+
   body("country")
     .notEmpty()
     .withMessage("Country is required")
     .isString()
-    .withMessage("Country must be a string"),
+    .withMessage("Country must be a string")
+    .trim(),
+
   body("route_vehicle_id")
     .optional()
     .isString()
@@ -326,10 +332,58 @@ export const validateStudentSignUp = [
     .optional()
     .isString()
     .withMessage("Photo URL must be a string"),
-  body("parentId")
-    .optional()
+
+  // Guardian Details
+  body("exist_guardian")
+    .notEmpty()
+    .withMessage("exist_guardian is required")
+    .isBoolean()
+    .withMessage("exist_guardian must be a boolean"),
+
+  body("guardian_name")
+    .if((value, { req }) => req.body.exist_guardian === false)
+    .notEmpty()
+    .withMessage("Guardian's name is required")
     .isString()
-    .withMessage("Parent ID must be a string"),
+    .withMessage("Guardian's name must be a string")
+    .trim()
+    .bail()
+    .optional(),
+
+  body("guardian_phone")
+    .if((value, { req }) => req.body.exist_guardian === false)
+    .notEmpty()
+    .withMessage("Guardian phone is required")
+    .isArray()
+    .withMessage("Guardian phone must be an array of strings")
+    .custom((value: string[]) => {
+      if (!value.every((v) => typeof v === "string")) {
+        throw new Error("All guardian phone numbers must be strings");
+      }
+      return true;
+    })
+    .bail()
+    .optional(),
+
+  body("guardian_email")
+    .notEmpty()
+    .withMessage("Guardian email is required")
+    .isEmail()
+    .withMessage("Guardian email must be valid"),
+
+  body("guardian_username")
+    .notEmpty()
+    .withMessage("Guardian username is required")
+    .isString()
+    .withMessage("Guardian username must be a string"),
+
+  body("guardian_password")
+    .notEmpty()
+    .withMessage("Guardian password is required")
+    .isString()
+    .withMessage("Guardian password must be a string")
+    .isLength({ min: 6 })
+    .withMessage("Guardian password must be at least 6 characters long"),
 
   handleValidationErrors,
 ];
@@ -547,6 +601,11 @@ export const validateCreateClass = [
       }
       return true;
     }),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("teacher ID must be an string"),
+
   handleValidationErrors,
 ];
 
@@ -661,5 +720,87 @@ export const validatePromoteStudent = [
     .withMessage("Section ID is required")
     .isString()
     .withMessage("Section ID must be a string"),
+  handleValidationErrors,
+];
+
+// Validation for sending bulk messages
+export const validateSendBulkMessage = [
+  body("recipients")
+    .notEmpty()
+    .withMessage("Recipients are required")
+    .isObject()
+    .withMessage("Recipients must be an object"),
+  body("recipients.staffIds")
+    .optional()
+    .isArray()
+    .withMessage("Staff IDs must be an array of strings")
+    .custom((value: unknown[]) => {
+      if (value && !value.every((item) => typeof item === "string")) {
+        throw new Error("Each staffId ID must be a string");
+      }
+      return true;
+    }),
+  body("recipients.studentIds")
+    .optional()
+    .isArray()
+    .withMessage("Student IDs must be an array of strings")
+    .custom((value: unknown[]) => {
+      if (value && !value.every((item) => typeof item === "string")) {
+        throw new Error("Each student ID must be a string");
+      }
+      return true;
+    }),
+  body("recipients.classId")
+    .optional()
+    .isString()
+    .withMessage("Class ID must be a string"),
+  body("recipients.schoolId")
+    .optional()
+    .isString()
+    .withMessage("School ID must be a string"),
+  body("title")
+    .notEmpty()
+    .withMessage("Title is required")
+    .isString()
+    .withMessage("Title must be a string"),
+  body("message")
+    .notEmpty()
+    .withMessage("Message is required")
+    .isString()
+    .withMessage("Message must be a string"),
+  body("category")
+    .notEmpty()
+    .withMessage("Category is required")
+    .isString()
+    .withMessage("Category must be a string")
+    .customSanitizer((value) => value.toUpperCase()),
+  body("channels")
+    .isArray()
+    .withMessage("Channels must be an array")
+    .isIn(["EMAIL", "IN_APP", "BOTH"])
+    .withMessage("Channels must include 'EMAIL', 'IN_APP', or 'BOTH'"),
+  body("scheduledAt")
+    .optional()
+    .isISO8601()
+    .withMessage("Scheduled time must be a valid ISO 8601 date"),
+  handleValidationErrors,
+];
+
+// Validation for fetching notifications for a user
+export const validateGetNotificationsForUser = [
+  query("category")
+    .optional()
+    .isString()
+    .withMessage("Category must be a string")
+    .customSanitizer((value) => value.toUpperCase()),
+  query("status").optional().isString().withMessage("Status must be a string"),
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Start date must be a valid ISO 8601 date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("End date must be a valid ISO 8601 date"),
   handleValidationErrors,
 ];

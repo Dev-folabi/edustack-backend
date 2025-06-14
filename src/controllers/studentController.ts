@@ -365,116 +365,7 @@ export const promoteStudent = async (
   }
 };
 
-// Transfer Student
-// export const transferStudent = async (
-//   req: Request<{}, {}, TransferStudentRequest>,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   try {
-//     const { studentId, toSchoolId, toClassId, toSectionId, transferReason } =
-//       req.body;
 
-//     // Validate students
-//     const students = await prisma.student.findMany({
-//       where: { id: { in: studentId } },
-//     });
-//     if (students.length !== studentId.length) {
-//       return handleError(res, "One or more students not found", 404);
-//     }
-
-//     // Get from school
-//     const fromSchoolEnrollment = await prisma.student.findFirst({
-//       where: {
-//         id: { in: studentId },
-//       },
-//       include: {
-//         student_enrolled: {
-//           where: { status: "enrolled" },
-//           select: { class: { select: { schoolId: true } } },
-//         },
-//       },
-//     });
-
-//     if (!fromSchoolEnrollment) {
-//       return handleError(
-//         res,
-//         "One or more students not associated with a school",
-//         404
-//       );
-//     }
-
-//     const fromSchoolId = fromSchoolEnrollment.student_enrolled[0].class.schoolId;
-
-//     // Validate schools, class, and section
-//     const [schools, classes, sections] = await Promise.all([
-//       prisma.school.findMany({
-//         where: { id: { in: [fromSchoolId, toSchoolId] }, isActive: true },
-//       }),
-//       prisma.classes.findMany({ where: { id: toClassId } }),
-//       prisma.class_Section.findMany({ where: { id: toSectionId } }),
-//     ]);
-
-//     if (schools.length !== 2) {
-//       return handleError(res, "One or both schools not found or inactive", 404);
-//     }
-//     if (classes.length !== 1) {
-//       return handleError(res, "Class not found", 404);
-//     }
-//     if (sections.length !== 1) {
-//       return handleError(res, "Section not found", 404);
-//     }
-
-//     // Get active session and term
-//     const session = await findActiveSession(res);
-//     if (!session) return;
-
-//     const termId = session.terms.find((term) => term.isActive)?.id;
-//     if (!termId) {
-//       return handleError(res, "No active term in session", 400);
-//     }
-
-//     // Perform transfer in transaction
-//     const transferCount = await prisma.$transaction(async (tx) => {
-//       await tx.studentEnrollment.updateMany({
-//         where: { studentId: { in: studentId }, status: "enrolled" },
-//         data: { status: "transferred" },
-//       });
-
-//       await tx.studentEnrollment.createMany({
-//         data: studentId.map((id) => ({
-//           studentId: id,
-//           classId: toClassId,
-//           sectionId: toSectionId,
-//           sessionId: session.id,
-//           termId,
-//           status: "enrolled",
-//         })),
-//       });
-
-//       const transfer = await tx.studentTransfer.createMany({
-//         data: studentId.map((id) => ({
-//           studentId: id,
-//           fromSchoolId,
-//           toSchoolId,
-//           toClassId,
-//           toSectionId,
-//           transferReason: transferReason || undefined,
-//           transferDate: new Date(),
-//         })),
-//       });
-
-//       return transfer.count;
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       message: `${transferCount} student(s) transferred successfully`,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 
 export const transferStudent = async (
   req: Request<{}, {}, TransferStudentRequest>,
@@ -655,3 +546,76 @@ export const getTransferStudentsBySchool = async (
     next(error);
   }
 };
+
+
+// export const updateStudent = async (req: Request, res: Response) => {
+//   const { studentId } = req.params;
+//   const data = req.body;
+
+//   try {
+//     // Check if student exists
+//     const student = await prisma.student.findUnique({
+//       where: { id: studentId },
+//       include: { parent: { include: { user: true } } },
+//     });
+
+//     if (!student) {
+//       return res.status(404).json({ message: "Student not found" });
+//     }
+
+//     // Extract parent payload if exists
+//     const parentPayload = data.parent;
+//     delete data.parent; // prevent nested update on parent with Prisma update
+
+//     // Filter out only keys that exist in schema for Student
+//     const allowedFields = [
+//       "name", "gender", "dob", "phone", "email", "address", "religion", "blood_group",
+//       "father_name", "mother_name", "father_occupation", "mother_occupation",
+//       "city", "state", "country", "photo_url", "isActive", "isStudent"
+//     ];
+
+//     const studentUpdateData: Record<string, any> = {};
+//     allowedFields.forEach((key) => {
+//       if (key in data) studentUpdateData[key] = data[key];
+//     });
+
+//     // Prepare update promises
+//     const updateOps: Promise<any>[] = [];
+
+//     // Update student details
+//     if (Object.keys(studentUpdateData).length > 0) {
+//       updateOps.push(
+//         prisma.student.update({
+//           where: { id: studentId },
+//           data: studentUpdateData,
+//         })
+//       );
+//     }
+
+//     // Update parent if payload is provided
+//     if (parentPayload && student.parentId) {
+//       const { name, email, phone } = parentPayload;
+//       const parentUpdateData: Record<string, any> = {};
+
+//       if (name) parentUpdateData.name = name;
+//       if (email) parentUpdateData.email = email;
+//       if (phone) parentUpdateData.phone = phone;
+
+//       if (Object.keys(parentUpdateData).length > 0) {
+//         updateOps.push(
+//           prisma.parent.update({
+//             where: { id: student.parentId },
+//             data: parentUpdateData,
+//           })
+//         );
+//       }
+//     }
+
+//     await Promise.all(updateOps);
+
+//     return res.status(200).json({ message: "Student updated successfully" });
+//   } catch (error: any) {
+//     console.error("Update Student Error:", error);
+//     return res.status(500).json({ message: error.message || "Something went wrong" });
+//   }
+// };

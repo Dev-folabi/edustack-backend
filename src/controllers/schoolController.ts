@@ -4,6 +4,7 @@ import { ISchoolRequest } from "../types/requests";
 import { getIdFromToken } from "../function/token";
 import { validateUserSchool } from "../function/schoolFunctions";
 import { handleError } from "../error/errorHandler";
+import { paginateResults } from "../function/pagination";
 
 // Create a new school
 export const createSchool = async (
@@ -13,7 +14,7 @@ export const createSchool = async (
 ) => {
   try {
     const userId = getIdFromToken(req);
-    const { name, email, phone, address } = req.body;
+    const { name, email, phone, address, adminId, isActive } = req.body;
 
     // Check if the school already exists
     const existingSchool = await prisma.school.findFirst({ where: { name } });
@@ -49,7 +50,7 @@ export const createSchool = async (
 
     // Create school
     const school = await prisma.school.create({
-      data: { name, email, phone, address },
+      data: { name, email, phone, address, isActive },
     });
 
     // Link school to user
@@ -60,6 +61,16 @@ export const createSchool = async (
         role: user.isSuperAdmin ? "super_admin" : "admin",
       },
     });
+
+    if (adminId) {
+      await prisma.userSchool.create({
+        data: {
+          userId: adminId,
+          schoolId: school.id,
+          role: "admin",
+        },
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -93,10 +104,14 @@ export const getUserSchools = async (
     res.status(200).json({
       success: true,
       message: "Schools fetched successfully",
-      data: schools,
+      data: paginateResults(
+        schools,
+        parseInt(req.query?.page as string, 10),
+        parseInt(req.query?.limit as string, 10)
+      ),
     });
   } catch (error: any) {
-    console.error("Error in getAllSchools:", error);
+    console.error("Error in getUserSchools:", error);
     next(error);
   }
 };
@@ -112,7 +127,17 @@ export const getAllSchools = async (
     if (!authHeader)
       return handleError(res, "Authorization header is missing", 401);
 
-    const schools = await prisma.school.findMany();
+    const { name, isActive } = req.query;
+
+    const schools = await prisma.school.findMany({
+      where: {
+        name: name ? { contains: name.toString() } : undefined,
+        isActive: isActive ? isActive === "true" : undefined,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
     if (!schools.length) {
       return handleError(res, "No schools found", 404);
@@ -120,7 +145,11 @@ export const getAllSchools = async (
     res.status(200).json({
       success: true,
       message: "Schools fetched successfully",
-      data: schools,
+      data: paginateResults(
+        schools,
+        parseInt(req.query?.page as string, 10),
+        parseInt(req.query?.limit as string, 10)
+      ),
     });
   } catch (error: any) {
     console.error("Error in getAllSchools:", error);

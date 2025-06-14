@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../prisma";
 import { SessionRequest } from "../types/requests/index";
 import { handleError } from "../error/errorHandler";
+import { paginateResults } from "../function/pagination";
 
 // Create Session and Terms
 export const createSessionWithTerms = async (
@@ -101,12 +102,19 @@ export const getAllSessions = async (
       include: {
         terms: true,
       },
-    });
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
 
     res.status(200).json({
       success: true,
       message: "All sessions retrieved successfully",
-      data: result,
+      data: paginateResults(
+        result,
+        parseInt(req.query?.page as string, 10),
+        parseInt(req.query?.limit as string, 10)
+      ),
     });
   } catch (error: any) {
     next(error);
@@ -153,7 +161,7 @@ export const updateSessionWithTerms = async (
 
     // Ensure start_date is earlier than end_date
     if (start_date && end_date && new Date(start_date) >= new Date(end_date)) {
-      return handleError(res, "start_date must be earlier than end_date", 400);
+      return handleError(res, "start date must be earlier than end date", 400);
     }
 
     // Validate terms' start and end dates
@@ -280,12 +288,22 @@ export const getAllTerms = async (
   next: NextFunction
 ) => {
   try {
-    const terms = await prisma.term.findMany();
+    const terms = await prisma.term.findMany(
+      {
+        orderBy:{
+          createdAt: 'desc'
+        }
+      }
+    );
 
     res.status(200).json({
       success: true,
       message: "All terms retrieved successfully",
-      data: terms,
+      data: paginateResults(
+        terms,
+        parseInt(req.query?.page as string, 10),
+        parseInt(req.query?.limit as string, 10)
+      ),
     });
   } catch (error: any) {
     next(error);

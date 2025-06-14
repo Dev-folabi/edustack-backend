@@ -34,6 +34,7 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
         );
       }
 
+      (req as any).user = user.id;
       next();
     } catch (error: any) {
       console.error("Error in roleAuthorization:", error.message);
@@ -53,6 +54,7 @@ export const verifyToken = async (
       return handleError(res, 400, "Invalid token provided");
     }
 
+    (req as any).user = userId;
     next();
   } catch (error: any) {
     console.error("Error in tokenAuthorization:", error.message);
