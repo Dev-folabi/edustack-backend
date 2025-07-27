@@ -5,12 +5,13 @@ import api from "./routes/api";
 import prisma from "./prisma";
 import { errorHandler } from "./error/errorHandler";
 import "./function/cronJob";
+import logger from "./utils/logger"; // Added logger import
 
 const app = express();
 
 const port = process.env.PORT || 7000;
 app.use(cors());
-app.use(morgan("combined"));
+app.use(morgan("combined")); // Consider replacing with Pino HTTP logger for consistency if desired later
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -31,11 +32,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  logger.info(`Server is running on http://localhost:${port}`);
 });
 
-process.on("SIGINT", () => {
-  prisma.$disconnect();
-  console.log("Prisma client disconnected");
-  process.exit(0);
+process.on("SIGINT", async () => { // Made async to allow proper disconnect
+  try {
+    await prisma.$disconnect();
+    logger.info("Prisma client disconnected successfully due to application termination.");
+  } catch (e) {
+    logger.error({ err: e }, "Error disconnecting Prisma client during application termination.");
+  } finally {
+    process.exit(0);
+  }
 });

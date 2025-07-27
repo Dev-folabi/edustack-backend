@@ -8,6 +8,7 @@ import {
   resendOTP,
   requestPasswordReset,
   resetPassword,
+  logoutUser, // Added logoutUser
 } from "../../controllers/authController";
 import { signUpvalidate } from "../../middlewares/customValidations";
 import {
@@ -20,6 +21,7 @@ import {
   validateResendOTP,
   validateVerifyEmailOTP,
 } from "../../middlewares/Validators";
+import { verifyToken } from "../../middlewares/authorization"; // Added verifyToken
 
 const router = express.Router();
 
@@ -60,5 +62,8 @@ router.post(
 
 // User Sign-in
 router.post("/signin", validateSignIn, userSignIn);
+
+// User Logout
+router.post("/logout", verifyToken, logoutUser); // Added logout route
 
 export default router;
