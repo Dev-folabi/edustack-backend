@@ -7,36 +7,81 @@ import {
   IStaffRequest,
   IStudentRequest,
 } from "../types/requests";
-import { generateToken } from "../function/token";
-import { UserRole } from "@prisma/client";
+import { generateToken, getDecodedTokenFromRequest } from "../function/token";
+import { Gender, PrismaClient, User, UserRole as PrismaUserRoleEnum } from "@prisma/client";
 import { findActiveSession, validateSchool } from "../function/schoolFunctions";
 import { handleError } from "../error/errorHandler";
-import { deleteCache, getCache, setCache } from "../utils/redis";
+import {
+  deleteCache,
+  getCache,
+  setCache,
+  addTokenToDenylist,
+  checkRateLimit
+} from "../utils/redis";
 import { notifyUser } from "../utils/notification";
+import logger from "../utils/logger";
+import {
+    OTP_EXPIRY_SECONDS,
+    SENSITIVE_USER_ROLES,
+    SENSITIVE_ROLE_TOKEN_EXPIRES_IN,
+    OTP_VERIFY_WINDOW_SECONDS,
+    OTP_VERIFY_MAX_ATTEMPTS,
+    OTP_RESEND_WINDOW_SECONDS,
+    OTP_RESEND_MAX_ATTEMPTS,
+    REDIS_EMAIL_VERIFICATION_PREFIX,
+    REDIS_PASSWORD_RESET_PREFIX
+} from "../../config/constants"; // Updated import path
 
-const sensitiveRoles = ["super_admin", "admin", "finance"];
+// Type for Prisma Transaction Client
+type PrismaTransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
-// Validate class-section existence
+// Sensitive roles are now imported from constants.ts
+// const sensitiveRoles = ["super_admin", "admin", "finance"];
+
+/**
+ * Validates if a specific section exists within a given class.
+ * @param classId - The ID of the class.
+ * @param sectionId - The ID of the section.
+ * @returns The Class_Section object if found, otherwise null.
+ */
 const validateSection = async (classId: string, sectionId: string) => {
   return prisma.class_Section.findFirst({
     where: { id: sectionId, classId },
   });
 };
 
-// Validate guardian details and return parent ID
+/**
+ * Validates guardian (parent) details if an existing guardian account is indicated.
+ * If `exist_guardian` is true, it attempts to find an existing parent user by email or username
+ * and verifies the provided password.
+ * @param exist_guardian - Boolean indicating if an existing guardian is being used.
+ * @param guardianData - Object containing guardian_email, guardian_username, and guardian_password.
+ * @returns The ID of the parent if successfully validated.
+ * @throws Error if parent not found or password incorrect.
+ */
 const getOrCreateParent = async (
   exist_guardian: boolean,
-  guardianData: any
+  guardianData: {guardian_email?: string, guardian_username?: string, guardian_password?: string}
 ): Promise<string> => {
   if (!exist_guardian) return "";
 
   const { guardian_email, guardian_username, guardian_password } = guardianData;
 
+  if (!guardian_email && !guardian_username) {
+    throw new Error("Guardian email or username is required to find an existing guardian.");
+  }
+  if (!guardian_password) {
+    throw new Error("Guardian password is required to verify an existing guardian.");
+  }
+
   const existingUser = await prisma.user.findFirst({
     where: {
-      OR: [{ email: guardian_email }, { username: guardian_username }],
+      OR: [
+        { email: guardian_email },
+        { username: guardian_username }
+      ],
     },
-    select: { parent: true, password: true },
+    select: { parent: { select: { id: true } }, password: true },
   });
 
   if (existingUser) {
@@ -45,17 +90,28 @@ const getOrCreateParent = async (
       existingUser.password
     );
     if (isPasswordCorrect) {
-      return existingUser.parent?.id || "";
+      if (!existingUser.parent?.id) {
+        throw new Error("User exists but is not registered as a parent.");
+      }
+      return existingUser.parent.id;
     } else {
-      throw new Error("Parent password is incorrect");
+      throw new Error("Invalid parent credentials provided.");
     }
   } else {
-    throw new Error("Parent not found");
+    throw new Error("Parent not found with the provided email or username.");
   }
 };
 
-// Create a new parent account
-const createParentAccount = async (guardianData: any, tx: any) => {
+/**
+ * Creates a new parent User and Parent profile within a Prisma transaction.
+ * @param tx - Prisma transactional client.
+ * @param guardianData - Object containing guardian details (email, username, password, name, phone).
+ * @returns The ID of the newly created Parent profile.
+ */
+const createParentAccount = async (
+    tx: PrismaTransactionClient,
+    guardianData: any
+): Promise<string> => {
   const {
     guardian_email,
     guardian_username,
@@ -88,50 +144,133 @@ const createParentAccount = async (guardianData: any, tx: any) => {
   return parentAccount.id;
 };
 
-// Create the student account
-const createStudent = async (
-  tx: any,
+/**
+ * Creates a new Student profile and their initial enrollment record within a Prisma transaction.
+ * @param tx - Prisma transactional client.
+ * @param userId - The ID of the User record for the student.
+ * @param parentId - The ID of the linked Parent profile.
+ * @param studentData - Object containing student-specific details.
+ * @param session - The active academic session object, must include ID.
+ * @param termId - The ID of the active term within the session.
+ * @returns The newly created Student object.
+ */
+const _createStudentAndEnrollment = async (
+  tx: PrismaTransactionClient,
   userId: string,
   parentId: string,
   studentData: any,
-  session: any,
+  session: {id: string},
   termId: string
 ) => {
   const {
-    dob,
-    admission_date,
-    classId,
-    sectionId,
-    isActive,
+    dob, admission_date, classId, sectionId, isActive,
     ...studentDataWithoutId
   } = studentData;
 
   const student = await tx.student.create({
     data: {
-      userId,
-      parentId,
+      userId, parentId,
       dob: new Date(dob),
-      admission_date: new Date(admission_date),
-      isActive: isActive ?? false,
+      admission_date: admission_date ? new Date(admission_date) : new Date(),
+      isActive: isActive ?? true,
       ...studentDataWithoutId,
     },
   });
 
   await tx.studentEnrollment.create({
     data: {
-      studentId: student.id,
-      classId,
-      sectionId,
-      sessionId: session.id,
-      termId,
-      status: "enrolled",
+      studentId: student.id, classId, sectionId,
+      sessionId: session.id, termId, status: "enrolled",
     },
   });
 
   return student;
 };
 
-// Super Admin Sign Up
+
+/**
+ * Internal helper to create student's User, UserSchool, Student profile, and initial StudentEnrollment
+ * within a database transaction.
+ * @param tx - Prisma transactional client.
+ * @param data - Object containing all necessary data for student creation.
+ * @returns The created User and Student objects.
+ */
+const _createStudentUserAndDependenciesInTransaction = async (
+    tx: PrismaTransactionClient,
+    data: {
+        email: string;
+        hashedPassword?: string;
+        username: string;
+        schoolId: string;
+        parentId: string;
+        studentData: any;
+        session: { id: string };
+        termId: string;
+    }
+) => {
+    const { email, hashedPassword, username, schoolId, parentId, studentData, session, termId } = data;
+
+    const user = await tx.user.create({
+        data: { email, password: hashedPassword, username },
+    });
+
+    await tx.userSchool.create({
+        data: { userId: user.id, schoolId: schoolId, role: "student" },
+    });
+
+    const student = await _createStudentAndEnrollment(
+        tx, user.id, parentId, studentData, session, termId
+    );
+    return { user, student };
+};
+
+
+/**
+ * Internal helper to create staff's User, UserSchool, and Staff profile
+ * within a database transaction.
+ * @param tx - Prisma transactional client.
+ * @param data - Object containing all necessary data for staff creation.
+ * @returns The created User object (or just its ID).
+ */
+const _createStaffUserAndDependenciesInTransaction = async (
+    tx: PrismaTransactionClient,
+    data: {
+        email: string;
+        hashedPassword?: string;
+        username: string;
+        schoolId: string;
+        role: PrismaUserRoleEnum;
+        staffProfileData: any;
+    }
+) => {
+    const { email, hashedPassword, username, schoolId, role, staffProfileData } = data;
+
+    const user = await tx.user.create({
+        data: { email, password: hashedPassword, username },
+        select: { id: true },
+    });
+
+    await tx.userSchool.create({
+        data: { userId: user.id, schoolId: schoolId, role: role },
+    });
+
+    const { dob, joining_date, ...otherStaffData } = staffProfileData;
+    await tx.staff.create({
+        data: {
+            userId: user.id,
+            ...otherStaffData,
+            dob: dob ? new Date(String(dob)) : undefined,
+            joining_date: joining_date ? new Date(String(joining_date)) : undefined,
+        },
+    });
+    return user;
+};
+
+
+/**
+ * Handles Super Admin signup. Only one Super Admin can exist.
+ * @route POST /api/auth/admin-signup
+ */
 export const superAdminSignUp = async (
   req: Request<{}, {}, IUserRequest>,
   res: Response,
@@ -140,67 +279,56 @@ export const superAdminSignUp = async (
   try {
     const { email, password, username } = req.body;
 
-    // Check if super admin already exists
     const existingSuperAdmin = await prisma.user.findFirst({
       where: { isSuperAdmin: true },
     });
 
     if (existingSuperAdmin) {
-      return handleError(res, "Super admin already exists", 400);
+      logger.warn({ email, username }, "Attempt to create super admin when one already exists.");
+      return handleError(res, "Super admin already exists. Cannot create another.", 400);
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
-        email,
-        password: hashedPassword,
-        username,
-        isSuperAdmin: true,
+        email, password: hashedPassword, username, isSuperAdmin: true,
       },
       select: {
-        id: true,
-        email: true,
-        username: true,
-        isSuperAdmin: true,
-        createdAt: true,
-        updatedAt: true,
+        id: true, email: true, username: true, isSuperAdmin: true,
+        createdAt: true, updatedAt: true,
       },
     });
+    logger.info({ userId: user.id, username: user.username }, "Super admin account created, pending OTP verification.");
 
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Save OTP in Redis with 15 minute expiry
     Promise.all([
-      setCache(`email_verification_${user.id}`, otp, 900),
-      await notifyUser({
-        userId: user.id,
-        email: user.email || "",
-        title: "Email Verification OTP",
-        message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}. 
-        Please note that this code will expire in 15 minutes. 
-        If you did not request this code, please ignore this email.`,
+      setCache(`${REDIS_EMAIL_VERIFICATION_PREFIX}${user.id}`, otp, OTP_EXPIRY_SECONDS),
+      notifyUser({
+        userId: user.id, email: user.email || "", title: "Email Verification OTP",
+        message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}. \nPlease note that this code will expire in ${OTP_EXPIRY_SECONDS / 60} minutes. \nIf you did not request this code, please ignore this email.`,
         channels: ["EMAIL"],
       }),
-    ]);
+    ]).catch(otpError => {
+        logger.error({err: otpError, userId: user.id}, "Failed to set OTP cache or send notification for super admin signup.");
+    });
 
-    // Send success response
     res.status(201).json({
       success: true,
-      message:
-        "Account created successfully. Please check your email for verification code",
+      message: "Account created successfully. Please check your email for verification code.",
       data: user,
     });
   } catch (error: any) {
+    logger.error({ err: error, body: req.body }, "Error in superAdminSignUp");
     next(error);
   }
 };
 
-// Staff Sign Up
+/**
+ * Handles Staff signup. Creates a User, Staff profile, and links them to a school.
+ * @route POST /api/auth/staff-signup
+ */
 export const staffSignUp = async (
   req: Request<{}, {}, IStaffRequest>,
   res: Response,
@@ -208,86 +336,44 @@ export const staffSignUp = async (
 ) => {
   try {
     const {
-      username,
-      email,
-      password,
-      name,
-      phone,
-      address,
-      schoolId,
-      designation,
-      role,
-      dob,
-      salary,
-      joining_date,
-      gender,
-      photo_url,
-      qualification,
-      notes,
+      username, email, password, schoolId, role,
+      name, phone, address, designation, dob, salary, joining_date, gender,
+      photo_url, qualification, notes,
     } = req.body;
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Validate school existence
     const school = await validateSchool(String(schoolId));
     if (!school) {
-      return handleError(res, "School not found", 404);
+      return handleError(res, "School not found or is inactive.", 404);
     }
 
-    let newUser!: { id: string };
-    await prisma.$transaction(async (tx) => {
-      // Create user
-      newUser = await tx.user.create({
-        data: { email, password: hashedPassword, username },
-        select: { id: true },
-      });
+    const staffProfileData = { name, phone, email, address, designation, dob, salary, joining_date, gender, photo_url, qualification, notes };
 
-      // Link user to school
-      await tx.userSchool.create({
-        data: {
-          userId: newUser.id,
-          schoolId: school.id,
-          role: role as UserRole,
-        },
-      });
-
-      // Create staff profile
-      await tx.staff.create({
-        data: {
-          userId: newUser.id,
-          name,
-          phone,
-          email,
-          address,
-          designation,
-          dob: new Date(String(dob)),
-          salary,
-          joining_date: new Date(String(joining_date)),
-          gender,
-          photo_url,
-          qualification,
-          notes,
-        },
-      });
+    const newUser = await prisma.$transaction(async (tx) => {
+        return _createStaffUserAndDependenciesInTransaction(tx, {
+            email, hashedPassword, username, schoolId: school.id, role: role as PrismaUserRoleEnum, staffProfileData
+        });
     });
+    logger.info({ staffUserId: newUser.id, schoolId, role }, "Staff account created successfully.");
 
-    // Generate token
     const token = generateToken({ id: newUser.id });
 
-    // Success response
     res.status(201).json({
       success: true,
       message: "Staff created successfully",
-      data: { newUser, token },
+      data: { userId: newUser.id, token },
     });
   } catch (error: any) {
-    console.error("Error in staffSignUp:", error);
+    logger.error({ err: error, body: req.body }, "Error in staffSignUp");
     next(error);
   }
 };
 
-// Student Sign Up
+/**
+ * Handles Student signup.
+ * @route POST /api/auth/student-signup
+ */
 export const studentSignUp = async (
   req: Request<{}, {}, IStudentRequest>,
   res: Response,
@@ -295,99 +381,74 @@ export const studentSignUp = async (
 ) => {
   try {
     const {
-      email,
-      password,
-      username,
-      schoolId,
-      exist_guardian,
-      guardian_email,
-      guardian_username,
-      guardian_password,
-      guardian_name,
-      guardian_phone,
+      schoolId, exist_guardian, guardian_email, guardian_username,
+      guardian_password, guardian_name, guardian_phone,
       ...studentData
     } = req.body;
 
-    // Validate school existence
+    const { email, username, password } = studentData;
+
     const school = await validateSchool(String(schoolId));
-    if (!school) return handleError(res, "School not found", 404);
+    if (!school) return handleError(res, "School not found or is inactive.", 404);
 
-    // Validate section existence in class
-    const section = await validateSection(
-      studentData.classId,
-      studentData.sectionId
-    );
-    if (!section) return handleError(res, "Section not found in class", 404);
+    const section = await validateSection(studentData.classId, studentData.sectionId);
+    if (!section) return handleError(res, "Section not found in the specified class.", 404);
 
-    // Validate session and term
-    const session = await findActiveSession(res);
-    if (!session) return;
-    const termId = session.terms.find((term) => term.isActive)?.id;
-    if (!termId) return handleError(res, "No active term in session", 400);
+    const activeSession = await findActiveSession();
+    if (!activeSession) return handleError(res, "No active academic session found.", 400);
+    const activeTerm = activeSession.terms.find((term) => term.isActive);
+    if (!activeTerm) return handleError(res, "No active term found in the current session.", 400);
 
-    // Handle password hashing
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Validate guardian if exists
     let parentId = "";
     if (exist_guardian) {
       try {
-        parentId = await getOrCreateParent(exist_guardian, req.body);
+        parentId = await getOrCreateParent(exist_guardian, { guardian_email, guardian_username, guardian_password });
       } catch (error: any) {
+        logger.warn({ guardianEmail: guardian_email, guardianUsername: guardian_username, error: error.message }, "Failed to get or create parent during student signup.");
         return handleError(res, error.message, 401);
       }
     }
 
-    // Database transaction
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { email, password: hashedPassword, username },
-      });
-
-      if (!parentId) {
-        const guardianData = {
-          guardian_email,
-          guardian_username,
-          guardian_password,
-          guardian_name,
-          guardian_phone,
+      if (!parentId && !exist_guardian) {
+        const parentGuardianData = {
+          guardian_email, guardian_username, guardian_password,
+          guardian_name, guardian_phone,
         };
-        parentId = await createParentAccount(guardianData, tx);
+        parentId = await createParentAccount(parentGuardianData, tx);
+        logger.info({ parentId, studentEmail: email }, "New parent account created during student signup.");
+      } else if (!parentId && exist_guardian) {
+        logger.error({ guardianEmail: guardian_email }, "Parent ID not established despite exist_guardian=true.");
+        throw new Error("Parent account could not be established. Please check guardian details.");
       }
 
-      await tx.userSchool.create({
-        data: { userId: user.id, schoolId: school.id, role: "student" },
+      return _createStudentUserAndDependenciesInTransaction(tx, {
+          email, hashedPassword, username, schoolId: school.id, parentId,
+          studentData, session: activeSession, termId: activeTerm.id
       });
-
-      const student = await createStudent(
-        tx,
-        user.id,
-        parentId,
-        studentData,
-        session,
-        termId
-      );
-
-      return { user, student };
     });
+    logger.info({ studentUserId: result.user.id, schoolId }, "Student account created and enrolled successfully.");
 
-    // Generate token
     const token = generateToken({ id: result.user.id });
-
-    // Prepare response data
-    const userData = _.omit(result.user, ["password"]);
+    const responseUserData = _.omit(result.user, ["password"]);
 
     res.status(201).json({
       success: true,
       message: "Student created successfully",
-      data: { userData, student: result.student, token },
+      data: { userData: responseUserData, student: result.student, token },
     });
   } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in studentSignUp");
     next(error);
   }
 };
 
-// User Sign In
+/**
+ * Handles user sign-in for all roles.
+ * @route POST /api/auth/signin
+ */
 export const userSignIn = async (
   req: Request,
   res: Response,
@@ -396,68 +457,59 @@ export const userSignIn = async (
   try {
     const { emailOrUsername, password } = req.body;
 
-    const result = await prisma.user.findFirst({
+    const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: emailOrUsername }, { username: emailOrUsername }],
       },
       select: {
-        id: true,
-        email: true,
-        username: true,
-        isSuperAdmin: true,
-        userSchools: true,
-        staff: true,
-        student: true,
-        parent: true,
-        password: true,
+        id: true, email: true, username: true, isSuperAdmin: true,
+        userSchools: { select: { schoolId: true, role: true}},
+        staff: true, student: true, parent: true, password: true,
       },
     });
 
-    if (!result) {
-      return handleError(res, "User not found", 404);
+    if (!user) {
+      return handleError(res, "Invalid credentials. User not found.", 404);
     }
 
-    const isPasswordValid = await bcrypt.compare(password, result.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return handleError(res, "Invalid login details", 401);
+      return handleError(res, "Invalid credentials. Password incorrect.", 401);
     }
 
-    // Set shorter expiry for sensitive roles
     const expire =
-      result.userSchools.some(
-        (us) => us.role && sensitiveRoles.includes(us.role)
-      ) || result.isSuperAdmin
-        ? "1h"
-        : "1d";
+      user.userSchools.some(
+        (us) => us.role && SENSITIVE_USER_ROLES.includes(us.role)
+      ) || user.isSuperAdmin
+        ? SENSITIVE_ROLE_TOKEN_EXPIRES_IN
+        : undefined; // Let generateToken use its default from constants
 
-    const token = generateToken({ id: result.id, expire });
-
-    const userData = _.omit(result, [
-      "password",
-      "userSchools",
-      "staff",
-      "student",
-      "parent",
-    ]);
+    const token = generateToken({ id: user.id, expire });
+    const userDataToReturn = _.omit(user, ["password", "userSchools", "staff", "student", "parent"]);
+    logger.info({ userId: user.id, username: user.username }, "User signed in successfully.");
 
     res.status(200).json({
       success: true,
       message: "User signed in successfully",
       data: {
-        userData,
-        userSchools: result.userSchools,
-        staff: result.staff,
-        student: result.student,
-        parent: result.parent,
+        userData: userDataToReturn,
+        userSchools: user.userSchools,
+        staff: user.staff,
+        student: user.student,
+        parent: user.parent,
         token,
       },
     });
   } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in userSignIn");
     next(error);
   }
 };
 
-// Verify Email OTP
+/**
+ * Verifies an email OTP provided by the user.
+ * @route POST /api/auth/verify-email-otp
+ */
 export const verifyEmailOTP = async (
   req: Request,
   res: Response,
@@ -466,183 +518,152 @@ export const verifyEmailOTP = async (
   try {
     const { userId, otp } = req.body;
 
-    // Get stored OTP from Redis
-    const storedOTP = await getCache(`email_verification_${userId}`);
-
-    if (!storedOTP) {
-      return handleError(res, "OTP expired or invalid", 400);
+    if (!userId) {
+        return handleError(res, "User ID is required for OTP verification.", 400);
     }
 
-    if (otp !== storedOTP) {
-      return handleError(res, "Invalid OTP", 400);
+    const limitCheckVerify = await checkRateLimit(
+        "otp_verify",
+        userId,
+        OTP_VERIFY_WINDOW_SECONDS,
+        OTP_VERIFY_MAX_ATTEMPTS
+    );
+
+    if (!limitCheckVerify.allow) {
+      const retryMinutes = Math.ceil((limitCheckVerify.retryAfterSeconds || OTP_VERIFY_WINDOW_SECONDS) / 60);
+      const message = `Too many OTP verification attempts. Try again in ${retryMinutes} minutes.`;
+      logger.warn({ userId, attempts: limitCheckVerify.attemptsMade }, "OTP verification rate limit exceeded.");
+      return handleError(res, message, 429);
     }
 
-    // Get user
-    const result = await prisma.user.findUnique({
+    const storedOTP = await getCache(`${REDIS_EMAIL_VERIFICATION_PREFIX}${userId}`);
+    if (!storedOTP) return handleError(res, "OTP expired or invalid. Please request a new one.", 400);
+    if (otp !== storedOTP) return handleError(res, "Invalid OTP provided.", 400);
+
+    await deleteCache(`${REDIS_EMAIL_VERIFICATION_PREFIX}${userId}`);
+
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true,
-        email: true,
-        username: true,
-        isSuperAdmin: true,
-        userSchools: true,
-        staff: true,
-        student: true,
-        parent: true,
-        password: true,
+        id: true, email: true, username: true, isSuperAdmin: true,
+        userSchools: { select: { schoolId: true, role: true}},
+        staff: true, student: true, parent: true,
       },
     });
 
-    if (!result) {
-      return handleError(res, "User not found", 404);
-    }
-    // Set shorter expiry for sensitive roles
-    const expire =
-      result.userSchools.some(
-        (us) => us.role && sensitiveRoles.includes(us.role)
-      ) || result.isSuperAdmin
-        ? "1h"
-        : "1d";
+    if (!user) return handleError(res, "User not found after OTP verification.", 404);
 
-    // Generate token
-    const token = generateToken({ id: result.id, expire });
+    const expire = user.userSchools.some(us => us.role && SENSITIVE_USER_ROLES.includes(us.role)) || user.isSuperAdmin
+        ? SENSITIVE_ROLE_TOKEN_EXPIRES_IN
+        : undefined;
+    const token = generateToken({ id: user.id, expire });
 
-    // Create notification
     await notifyUser({
-      userId: result.id,
-      email: result.email || "",
-      title: "Email Verified",
-      message: "Your email has been successfully verified",
-      category: "GENERAL",
-      channels: ["IN_APP"],
+      userId: user.id, email: user.email || "", title: "Email Verified",
+      message: "Your email has been successfully verified.", category: "GENERAL", channels: ["IN_APP"],
     });
+    logger.info({ userId }, "Email verified successfully via OTP.");
 
-    const userData = _.omit(result, [
-      "userSchools",
-      "staff",
-      "student",
-      "parent",
-    ]);
-
+    const userDataToReturn = _.omit(user, ["userSchools", "staff", "student", "parent"]);
     res.status(200).json({
-      success: true,
-      message: "Email verified successfully",
+      success: true, message: "Email verified successfully",
       data: {
-        userData,
-        userSchools: result.userSchools,
-        staff: result.staff,
-        student: result.student,
-        parent: result.parent,
-        token,
+        userData: userDataToReturn, userSchools: user.userSchools,
+        staff: user.staff, student: user.student, parent: user.parent, token
       },
     });
   } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in verifyEmailOTP");
     next(error);
   }
 };
 
-// Helper function to handle OTP operations
+/**
+ * Helper function to generate, store, and send an OTP.
+ */
 const handleOTP = async ({
-  userId,
-  email,
-  username,
-  type = "email_verification",
-  subject = "Email Verification OTP",
-  messagePrefix = "email verification",
+  userId, email, username, type = "email_verification",
+  subject = "Email Verification OTP", messagePrefix = "email verification",
 }: {
-  userId: string;
-  email: string;
-  username: string;
-  type?: string;
-  subject?: string;
-  messagePrefix?: string;
-}) => {
-  // Generate new OTP
+  userId: string; email: string; username: string;
+  type?: "email_verification" | "password_reset";
+  subject?: string; messagePrefix?: string;
+}): Promise<string> => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const prefix = type === "password_reset" ? REDIS_PASSWORD_RESET_PREFIX : REDIS_EMAIL_VERIFICATION_PREFIX;
+  const cacheKey = `${prefix}${userId}`;
 
-  const cacheKey = `${type}_${userId}`;
-
-  // Clear existing OTP if present
   const existingOTP = await getCache(cacheKey);
-  if (existingOTP) {
-    await deleteCache(cacheKey);
-  }
+  if (existingOTP) await deleteCache(cacheKey);
 
-  // Save new OTP with 15 min expiry
-  await setCache(cacheKey, otp, 900);
+  await setCache(cacheKey, otp, OTP_EXPIRY_SECONDS);
 
-  // Send OTP email
-  await notifyUser({
-    userId,
-    email,
-    title: subject,
-    message: `Dear ${username || "user"},  Your ${messagePrefix} code is ${otp}. 
-    Please note that this code will expire in 15 minutes. 
-     If you did not request this code, please ignore this email.`,
+  notifyUser({
+    userId, email, title: subject,
+    message: `Dear ${username || "user"},  Your ${messagePrefix} code is ${otp}. \nPlease note that this code will expire in ${OTP_EXPIRY_SECONDS / 60} minutes. \nIf you did not request this code, please ignore this email.`,
     channels: ["EMAIL"],
-  });
+  }).catch(err => logger.error({ err, userId, email, type }, "Failed to send OTP notification via handleOTP"));
 
   return otp;
 };
 
+/**
+ * Handles resending of OTPs.
+ * @route POST /api/auth/resend-otp
+ */
 export const resendOTP = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { id, email, type } = req.body;
+    const { id, email, type } = req.body as { id?: string; email?: string; type: "email_verification" | "password_reset" };
+    const identifier = id || email;
 
-    // Find user
+    if (!identifier) {
+        return handleError(res, "User identifier (id or email) is required for OTP resend.", 400);
+    }
+
+    const limitCheckResend = await checkRateLimit(
+        "otp_resend",
+        identifier,
+        OTP_RESEND_WINDOW_SECONDS,
+        OTP_RESEND_MAX_ATTEMPTS
+    );
+
+    if (!limitCheckResend.allow) {
+      const retryMinutes = Math.ceil((limitCheckResend.retryAfterSeconds || OTP_RESEND_WINDOW_SECONDS) / 60);
+      const message = `Too many OTP resend requests. Try again in ${retryMinutes} minutes.`;
+      logger.warn({ identifier, type, attempts: limitCheckResend.attemptsMade }, "OTP resend rate limit exceeded.");
+      return handleError(res, message, 429);
+    }
+
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ id }, { email }],
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-      },
+      where: { OR: [{ id }, { email }] },
+      select: { id: true, email: true, username: true },
     });
 
-    if (!user) {
-      return handleError(res, "User not found", 404);
-    }
-
-    // Configure OTP based on type
-    const otpConfig = {
-      userId: user.id,
-      email: user.email,
-      username: user.username,
-      type: (type as string) || "email_verification",
-      subject:
-        type === "password_reset"
-          ? "Password Reset OTP"
-          : "Email Verification OTP",
-      messagePrefix:
-        type === "password_reset" ? "Password reset" : "Email verification",
-    };
-
-    // Ensure email is not null before passing to handleOTP
-    if (!user.email) {
-      return handleError(res, "User email is required", 400);
-    }
+    if (!user) return handleError(res, "User not found.", 404);
+    if (!user.email) return handleError(res, "User email is required for OTP operation and is missing.", 400);
 
     await handleOTP({
-      ...otpConfig,
-      email: user.email,
+      userId: user.id, email: user.email, username: user.username || "user",
+      type: type,
+      subject: type === "password_reset" ? "Password Reset OTP" : "Email Verification OTP",
+      messagePrefix: type === "password_reset" ? "Password reset" : "Email verification",
     });
-
-    res.status(200).json({
-      success: true,
-      message: "OTP resent successfully",
-    });
+    logger.info({ identifier, type }, "OTP resent successfully.");
+    res.status(200).json({ success: true, message: "OTP resent successfully." });
   } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in resendOTP");
     next(error);
   }
 };
 
-// Request Password Reset
+/**
+ * Initiates a password reset request.
+ * @route POST /api/auth/request-reset
+ */
 export const requestPasswordReset = async (
   req: Request,
   res: Response,
@@ -650,55 +671,38 @@ export const requestPasswordReset = async (
 ) => {
   try {
     const { email } = req.body;
-
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-      },
+      select: { id: true, email: true, username: true },
     });
 
-    if (!user) {
-      return handleError(res, "User not found", 404);
+    if (!user || !user.email) {
+        logger.warn({ emailProvided: email }, "Password reset requested for non-existent or email-less user. Responding ambiguously.");
+        return res.status(200).json({
+            success: true,
+            message: "If an account with this email exists, a password reset OTP has been sent.",
+        });
     }
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Check if there's an existing OTP and delete it
-    const existingOTP = await getCache(`password_reset_${user.id}`);
-    if (existingOTP) {
-      await deleteCache(`password_reset_${user.id}`);
-    }
-
-    // Save new OTP in Redis with 15 minute expiry
-    await setCache(`password_reset_${user.id}`, otp, 900);
-
-    // Send password reset email
-    await notifyUser({
-      userId: user.id,
-      email: user.email!,
-      title: "Password Reset OTP",
-      message: `Dear ${user.username || "user"}, 
-      Your password reset code is ${otp}. Please note that this code will expire in 15 minutes. 
-      If you did not request this code, please ignore this email.`,
-      channels: ["EMAIL"],
+    await handleOTP({
+        userId: user.id, email: user.email, username: user.username || "user",
+        type: "password_reset", subject: "Password Reset OTP", messagePrefix: "password reset"
     });
+    logger.info({ userId: user.id, email }, "Password reset OTP sent.");
 
     res.status(200).json({
-      success: true,
-      message: "Password reset OTP sent successfully",
-      data: { userId: user.id },
+      success: true, message: "If an account with this email exists, a password reset OTP has been sent.",
     });
   } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in requestPasswordReset");
     next(error);
   }
 };
 
-// Reset Password
+/**
+ * Resets a user's password.
+ * @route POST /api/auth/reset-password
+ */
 export const resetPassword = async (
   req: Request,
   res: Response,
@@ -707,41 +711,65 @@ export const resetPassword = async (
   try {
     const { userId, otp, newPassword } = req.body;
 
-    // Get stored OTP from Redis
-    const storedOTP = await getCache(`password_reset_${userId}`);
+    const storedOTP = await getCache(`${REDIS_PASSWORD_RESET_PREFIX}${userId}`);
+    if (!storedOTP || storedOTP !== otp) return handleError(res, "Invalid or expired OTP.", 400);
 
-    if (!storedOTP || storedOTP !== otp) {
-      return handleError(res, "Invalid or expired OTP", 400);
-    }
-
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update user password
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
-    // Delete OTP from Redis
-    await deleteCache(`password_reset_${userId}`);
-
-    // Create notification
+    await deleteCache(`${REDIS_PASSWORD_RESET_PREFIX}${userId}`);
     await notifyUser({
-      userId,
-      email: "",
-      title: "Password Reset",
-      message: "Your password was successfully reset",
-      category: "GENERAL",
-      channels: ["IN_APP"],
+      userId, email: "",
+      title: "Password Reset Successful",
+      message: "Your password was successfully reset.", category: "GENERAL", channels: ["IN_APP"],
     });
+    logger.info({ userId }, "Password reset successfully.");
+
+    res.status(200).json({ success: true, message: "Password reset successful." });
+  } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error in resetPassword");
+    next(error);
+  }
+};
+
+/**
+ * Logs out a user.
+ * @route POST /api/auth/logout
+ */
+export const logoutUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const currentDecodedToken = getDecodedTokenFromRequest(req);
+
+    if (!currentDecodedToken || !currentDecodedToken.jti || !currentDecodedToken.exp) {
+      logger.warn({ userId: (req as any).user, path: req.path }, "Logout attempt with malformed or missing token details after verifyToken.");
+      return handleError(res, "No active session found or token is malformed.", 400);
+    }
+
+    const { jti, exp, id: userId } = currentDecodedToken;
+
+    const successfullyDenylisted = await addTokenToDenylist(jti, exp);
+
+    if (!successfullyDenylisted) {
+      logger.error({ jti, userId }, "Failed to denylist token during logout. Token may remain valid until natural expiry.");
+    } else {
+      logger.info({ jti, userId }, "User logged out successfully, token JTI denylisted.");
+    }
 
     res.status(200).json({
       success: true,
-      message: "Password reset successful",
+      message: "User logged out successfully.",
     });
-  } catch (error) {
+  } catch (error: any) {
+    logger.error({ err: error, userId: (req as any).user }, "Error during logout");
     next(error);
   }
 };
