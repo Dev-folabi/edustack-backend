@@ -8,7 +8,7 @@ import {
   resendOTP,
   requestPasswordReset,
   resetPassword,
-  logoutUser, // Added logoutUser
+  logoutUser,
 } from "../../controllers/authController";
 import { signUpvalidate } from "../../middlewares/customValidations";
 import {
@@ -61,9 +61,9 @@ router.post(
 );
 
 // User Sign-in
-router.post("/signin", validateSignIn, userSignIn);
+router.post("/login", validateSignIn, userSignIn);
 
 // User Logout
-router.post("/logout", verifyToken, logoutUser); // Added logout route
+router.post("/logout", verifyToken, logoutUser);
 
 export default router;

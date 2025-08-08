@@ -26,7 +26,6 @@ const handleError = (res: Response, status: number, message: string) => {
  */
 const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRole[]): Promise<boolean> => {
   if (!userId || !schoolId || roles.length === 0) {
-    // Basic validation: if any crucial identifier is missing or no roles to check, consider unauthorized.
     return false;
   }
   try {
@@ -38,13 +37,13 @@ const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRol
           schoolId,
         }
       },
-      select: { role: true } // Only select the role for efficiency.
+      select: { role: true }
     });
     // Check if a link exists and if the user's role in that school is one of the allowed roles.
     return (userSchoolLink?.role && roles.includes(userSchoolLink.role)) || false;
   } catch (error) {
     logger.error({ err: error, userId, schoolId, roles }, "Error in hasAnyRole check");
-    return false; // In case of database error, deny permission for safety.
+    return false;
   }
 };
 
@@ -182,23 +181,22 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
         if (req.params && req.params.schoolId) schoolId = req.params.schoolId;
         else if (req.body && req.body.schoolId) schoolId = req.body.schoolId;
         else if (req.query && req.query.schoolId) schoolId = String(req.query.schoolId);
-        // Consider adding other potential schoolId sources like req.params.id for specific routes if necessary.
 
         if (!schoolId) {
           logger.warn({ userId, path: req.path, rolesChecked: roles }, "School ID missing for role-based action in roleAuthorization");
-          return handleError(res, 400, "School ID is required for this action but was not provided in request params, body, or query.");
+          return handleError(res, 400, "School ID is required for this action.");
         }
 
         const isAuthorizedBySchoolRole = await hasAnyRole(userId, schoolId, roles);
         if (!isAuthorizedBySchoolRole) {
           logger.warn({ userId, schoolId, rolesChecked: roles, path: req.path }, "User not authorized for action in school context in roleAuthorization");
-          return handleError(res, 403, "You are not authorized to perform this action in this school context.");
+          return handleError(res, 403, "You are not authorized to perform this action in this school.");
         }
       } else {
         // If roles array is empty, it means no specific roles are defined for this route for non-super_admins.
         // In this system, this implies only a super_admin should pass, or the route setup is ambiguous.
         logger.warn({ userId, path: req.path }, "Non-super_admin denied access due to empty roles array in roleAuthorization");
-        return handleError(res, 403, "You are not authorized to perform this action (no specific roles allowed for non-admins).");
+        return handleError(res, 403, "You are not authorized to perform this action.");
       }
 
       (req as any).user = user.id;

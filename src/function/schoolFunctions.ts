@@ -47,3 +47,9 @@ export const findActiveSession = async (res: Response) => {
   if (!session) return handleError(res, "No active session found", 400);
   return session;
 };
+
+export const validateSection = async (classId: string, sectionId: string) => {
+  return prisma.class_Section.findFirst({
+    where: { id: sectionId, classId },
+  });
+};
