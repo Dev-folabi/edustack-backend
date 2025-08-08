@@ -123,7 +123,7 @@ export interface SessionRequest {
 export interface classSchoolRequest {
   label: string;
   section: string;
-  school_id: string[];
+  schoolId: string[];
   teacherId?: string
 }
 

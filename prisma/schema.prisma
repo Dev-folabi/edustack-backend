@@ -80,6 +80,7 @@ model User {
   isSuperAdmin Boolean             @default(false)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
+  passwordChangedAt DateTime?
   notification Notification[]
   message      Scheduled_Message[]
 }

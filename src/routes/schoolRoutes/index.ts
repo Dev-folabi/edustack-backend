@@ -13,30 +13,37 @@ import {
   validateGetSchool,
   validateUpdateSchool,
 } from "../../middlewares/Validators";
-import { roleAuthorization } from "../../middlewares/authorization";
+import { roleAuthorization, verifyToken } from "../../middlewares/authorization"; // Added verifyToken
 
 const router = express.Router();
 
 // Create School
 router.post(
   "/",
+  verifyToken,
   roleAuthorization(["admin"]),
   validateCreateSchool,
   createSchool
 );
 
 // Get User School
-router.get("/", getUserSchools);
+router.get("/", verifyToken, getUserSchools);
 
 // Get All Schools
-router.get("/all", getAllSchools);
+router.get(
+  "/all",
+  verifyToken,
+  roleAuthorization(["super_admin"]),
+  getAllSchools
+);
 
 // Get Single School
-router.get("/:id", validateGetSchool, getSchool);
+router.get("/:id", verifyToken, validateGetSchool, getSchool);
 
 //  Update School
 router.put(
   "/:id",
+  verifyToken,
   roleAuthorization(["admin"]),
   validateUpdateSchool,
   updateSchool
@@ -45,6 +52,7 @@ router.put(
 // Delete School
 router.delete(
   "/:id",
+  verifyToken,
   roleAuthorization(["admin"]),
   validateDeleteSchool,
   deleteSchool

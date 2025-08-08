@@ -5,6 +5,7 @@ import api from "./routes/api";
 import prisma from "./prisma";
 import { errorHandler } from "./error/errorHandler";
 import "./function/cronJob";
+import logger from "./utils/logger";
 
 const app = express();
 
@@ -31,11 +32,21 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  logger.info(`Server is running on http://localhost:${port}`);
 });
 
-process.on("SIGINT", () => {
-  prisma.$disconnect();
-  console.log("Prisma client disconnected");
-  process.exit(0);
+process.on("SIGINT", async () => {
+  try {
+    await prisma.$disconnect();
+    logger.info(
+      "Prisma client disconnected successfully due to application termination."
+    );
+  } catch (e) {
+    logger.error(
+      { err: e },
+      "Error disconnecting Prisma client during application termination."
+    );
+  } finally {
+    process.exit(0);
+  }
 });
