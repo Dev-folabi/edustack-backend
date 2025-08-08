@@ -1,45 +1,63 @@
 import Redis from "ioredis";
 import logger from "./logger";
 import {
-    REDIS_DENYLIST_PREFIX,
-    REDIS_RATE_LIMIT_PREFIX,
-    DEFAULT_CACHE_EXPIRY_SECONDS, // Assuming this will be used for setCache default
-    // OTP_EXPIRY_SECONDS // Not directly used here unless setCache default is specifically for OTP
+  REDIS_DENYLIST_PREFIX,
+  REDIS_RATE_LIMIT_PREFIX,
+  DEFAULT_REDIS_CACHE_EXPIRY_SECONDS,
 } from "../config/constants";
+import dotenv from "dotenv";
 
-// Initialize Redis client with connection string from environment variables.
-// Includes a retry strategy for connection attempts.
-const redisClient = new Redis(
-  process.env.REDIS_URL || "redis://localhost:6379",
-  {
-    retryStrategy: (times) => Math.min(times * 50, 2000),
+dotenv.config();
+
+// Add connection pooling and better error handling
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+
+// Create Redis instance with improved options
+const redisClient = new Redis(REDIS_URL, {
+  tls: {},
+  retryStrategy(times) {
+    const delay = Math.min(1000 * Math.pow(2, times), 30000);
+    return delay + Math.floor(Math.random() * 1000);
+  },
+
+  maxRetriesPerRequest: 3,
+  enableOfflineQueue: true,
+  connectTimeout: 10000,
+  // keepAlive: 30000,
+  // lazyConnect: false,
+});
+
+let isConnected = false;
+
+redisClient.on("connect", () => {
+  isConnected = true;
+  logger.info("Connected to Redis");
+});
+
+redisClient.on("ready", () => {
+  logger.info("Redis is ready");
+});
+
+redisClient.on("error", (err) => {
+  if (!isConnected) {
+    logger.error({ err }, "Initial Redis connection failed.");
+  } else {
+    logger.error({ err }, "Redis Client Error");
   }
-);
+});
 
-// Event listener for Redis client errors.
-redisClient.on("error", (err) => logger.error({ err }, "Redis Client Error"));
-// Event listener for successful connection to Redis.
-redisClient.on("connect", () => logger.info("Connected to Redis"));
+redisClient.on("close", () => {
+  isConnected = false;
+  logger.warn("Redis connection closed");
+});
 
-/**
- * Rate Limiting Configuration: Defines time windows for various actions.
- * These are internal constants for reference and default values.
- * Actual values are passed as parameters to checkRateLimit.
- */
-const RATE_LIMIT_WINDOWS_REFERENCE = { // Renamed to avoid confusion
-  OTP_VERIFY: 15 * 60,
-  OTP_RESEND: 60 * 60,
-};
+redisClient.on("reconnecting", (delay) => {
+  logger.warn(`Redis reconnecting in ${delay}ms...`);
+});
 
-/**
- * Rate Limiting Configuration: Defines maximum attempt counts for various actions.
- * These are internal constants for reference and default values.
- * Actual values are passed as parameters to checkRateLimit.
- */
-const RATE_LIMIT_MAX_ATTEMPTS_REFERENCE = { // Renamed to avoid confusion
-  OTP_VERIFY: 5,
-  OTP_RESEND: 3,
-};
+redisClient.on("end", () => {
+  logger.warn("Redis connection ended");
+});
 
 /**
  * In-memory cache as a fallback or quick access layer.
@@ -47,23 +65,28 @@ const RATE_LIMIT_MAX_ATTEMPTS_REFERENCE = { // Renamed to avoid confusion
  */
 const memoryCache: { [key: string]: { value: any; expiry: number } } = {};
 
-// Note: DENYLIST_PREFIX is now imported from constants
-
 /**
  * Sets a value in the cache (Redis and in-memory fallback).
  * @param key - The cache key.
  * @param value - The value to store (will be JSON.stringified).
- * @param expireTime - Expiration time in seconds. Defaults to `DEFAULT_CACHE_EXPIRY_SECONDS`.
+ * @param expireTime - Expiration time in seconds. Defaults to `DEFAULT_REDIS_CACHE_EXPIRY_SECONDS`.
  * @returns True if successful, false otherwise.
  */
-export const setCache = async (key: string, value: any, expireTime = DEFAULT_CACHE_EXPIRY_SECONDS): Promise<boolean> => {
+export const setCache = async (
+  key: string,
+  value: any,
+  expireTime = DEFAULT_REDIS_CACHE_EXPIRY_SECONDS
+): Promise<boolean> => {
   try {
     const stringValue = JSON.stringify(value);
     await redisClient.setex(key, expireTime, stringValue);
     memoryCache[key] = { value, expiry: Date.now() + expireTime * 1000 };
     return true;
   } catch (error) {
-    logger.error({ err: error, key, expireTime }, "Redis Set Error for general cache");
+    logger.error(
+      { err: error, key, expireTime },
+      "Redis Set Error for general cache"
+    );
     return false;
   }
 };
@@ -114,7 +137,10 @@ export const deleteCache = async (key: string): Promise<boolean> => {
  * @param tokenExpiryTimestamp - The original expiration timestamp (in seconds since epoch) of the token.
  * @returns True if the token was successfully added to denylist or was already expired, false on error.
  */
-export const addTokenToDenylist = async (jti: string, tokenExpiryTimestamp: number): Promise<boolean> => {
+export const addTokenToDenylist = async (
+  jti: string,
+  tokenExpiryTimestamp: number
+): Promise<boolean> => {
   if (!jti) {
     logger.warn("Attempted to denylist a token without a JTI.");
     return false;
@@ -128,8 +154,15 @@ export const addTokenToDenylist = async (jti: string, tokenExpiryTimestamp: numb
       return true;
     }
 
-    await redisClient.setex(`${REDIS_DENYLIST_PREFIX}${jti}`, remainingValidityInSeconds, "revoked");
-    logger.info({ jti, validityInSeconds: remainingValidityInSeconds }, "Token JTI added to denylist");
+    await redisClient.setex(
+      `${REDIS_DENYLIST_PREFIX}${jti}`,
+      remainingValidityInSeconds,
+      "revoked"
+    );
+    logger.info(
+      { jti, validityInSeconds: remainingValidityInSeconds },
+      "Token JTI added to denylist"
+    );
     return true;
   } catch (error) {
     logger.error({ err: error, jti }, "Redis Set (Denylist) Error");
@@ -151,7 +184,10 @@ export const isTokenDenylisted = async (jti: string): Promise<boolean> => {
     const result = await redisClient.exists(`${REDIS_DENYLIST_PREFIX}${jti}`);
     return result === 1;
   } catch (error) {
-    logger.error({ err: error, jti }, "Redis Exists (Denylist) Error. Failing open (token not denylisted).");
+    logger.error(
+      { err: error, jti },
+      "Redis Exists (Denylist) Error. Failing open (token not denylisted)."
+    );
     return false;
   }
 };
@@ -169,9 +205,16 @@ export const checkRateLimit = async (
   identifier: string,
   limitWindowSeconds: number,
   maxAttempts: number
-): Promise<{ allow: boolean; attemptsMade: number; retryAfterSeconds?: number }> => {
-  if (!redisClient || !redisClient.status || redisClient.status !== 'ready') {
-    logger.warn({ actionKey, identifier, redisStatus: redisClient?.status }, "Redis client not ready for rate limiting. Allowing request.");
+): Promise<{
+  allow: boolean;
+  attemptsMade: number;
+  retryAfterSeconds?: number;
+}> => {
+  if (!redisClient || !redisClient.status || redisClient.status !== "ready") {
+    logger.warn(
+      { actionKey, identifier, redisStatus: redisClient?.status },
+      "Redis client not ready for rate limiting. Allowing request."
+    );
     return { allow: true, attemptsMade: 0 };
   }
 
@@ -190,14 +233,23 @@ export const checkRateLimit = async (
     }
 
     if (attemptsMade > maxAttempts) {
-      logger.warn({ actionKey, identifier, attemptsMade, maxAttempts, ttl }, "Rate limit exceeded");
-      return { allow: false, attemptsMade, retryAfterSeconds: ttl > 0 ? ttl : limitWindowSeconds };
+      logger.warn(
+        { actionKey, identifier, attemptsMade, maxAttempts, ttl },
+        "Rate limit exceeded"
+      );
+      return {
+        allow: false,
+        attemptsMade,
+        retryAfterSeconds: ttl > 0 ? ttl : limitWindowSeconds,
+      };
     }
 
     return { allow: true, attemptsMade };
-
   } catch (error) {
-    logger.error({ err: error, key: redisKey, actionKey, identifier }, "Redis Rate Limit Check Error. Allowing request.");
+    logger.error(
+      { err: error, key: redisKey, actionKey, identifier },
+      "Redis Rate Limit Check Error. Allowing request."
+    );
     return { allow: true, attemptsMade: 0 };
   }
 };
@@ -215,7 +267,10 @@ setInterval(() => {
     }
   });
   if (clearedCount > 0) {
-    logger.debug({ clearedCount }, "Cleaned expired items from in-memory cache.");
+    logger.debug(
+      { clearedCount },
+      "Cleaned expired items from in-memory cache."
+    );
   }
 }, 60000);
 

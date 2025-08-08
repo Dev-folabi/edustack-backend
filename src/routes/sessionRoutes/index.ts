@@ -8,11 +8,13 @@ import {
   getAllTerms,
   getTermById,
   updateSessionWithTerms,
+  deleteTerm,
 } from "../../controllers/sessionController";
 import {
   validateCreateSession,
   validateUpdateSession,
   validateDeleteSession,
+  validateDeleteTerm,
 } from "../../middlewares/Validators";
 import { roleAuthorization } from "../../middlewares/authorization";
 
@@ -91,5 +93,19 @@ router.delete(
   validateDeleteSession,
   deleteSession
 );
+
+/**
+ * @route DELETE /term/:id
+ * @description Delete a term by its ID
+ * @access Super Admin only
+ * @middleware roleAuthorization, validateDeleteTerm
+ */
+router.delete(
+  "/term/:id",
+  roleAuthorization(["super_admin"]),
+  validateDeleteTerm,
+  deleteTerm
+);
+
 
 export default router;

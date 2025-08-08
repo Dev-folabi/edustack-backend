@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { classSchoolRequest } from "../types/requests";
 import { handleError } from "../error/errorHandler"; // Local error response utility
 import prisma from "../prisma";
-import { PrismaClient, Classes as PrismaClasses } from "@prisma/client"; // Added PrismaClasses
+import { PrismaClient, Classes as PrismaClasses, Prisma } from "@prisma/client"; // Added PrismaClasses
 import { paginateResults } from "../function/pagination";
 import logger from "../utils/logger";
 

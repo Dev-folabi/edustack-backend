@@ -1,7 +1,24 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from 'uuid';
-import { DEFAULT_TOKEN_EXPIRES_IN } from "../config/constants"; // Added import
+import { v4 as uuidv4 } from "uuid";
+import { DEFAULT_TOKEN_EXPIRES_IN } from "../config/constants";
+
+/**
+ * Generates a random numeric OTP of specified length
+ * @param length - The length of OTP to generate (default: 6)
+ * @returns The generated OTP string
+ */
+export const generateOTP = (length: number = 6): string => {
+  // Ensure length is between 4 and 8 digits
+  const validLength = Math.min(Math.max(length, 4), 8);
+
+  // Generate random numbers and pad with leading zeros if needed
+  const otp = Math.floor(Math.random() * Math.pow(10, validLength))
+    .toString()
+    .padStart(validLength, "0");
+
+  return otp;
+};
 
 /**
  * Defines the structure of the JWT payload.
@@ -26,17 +43,15 @@ const JWT = process.env.JWT_SECRET_KEY as string;
  * @param payload.expire - Optional: A string describing the token expiry (e.g., "1h", "7d"). Defaults to `DEFAULT_TOKEN_EXPIRES_IN`.
  * @returns The generated JWT string.
  */
-export const generateToken = (payload: Omit<TokenPayload, 'jti'> & { expire?: string }): string => {
-  const expiresIn = payload.expire || DEFAULT_TOKEN_EXPIRES_IN; // Used constant
-  const jwtId = uuidv4(); // Generate a unique JWT ID (JTI)
+export const generateToken = (
+  payload: Omit<TokenPayload, "jti"> & { expire?: string }
+): string => {
+  const expiresIn = payload.expire || DEFAULT_TOKEN_EXPIRES_IN;
+  const jwtId = uuidv4();
 
-  // Sign the token with user ID and JTI.
-  // The `jwtid` option in `jwt.sign` sets the standard `jti` claim in the token.
-  // We also include `jti` in our internal payload structure for consistency if ever needed,
-  // though standard libraries primarily rely on the claim itself.
-  return jwt.sign({ id: payload.id, jti: jwtId }, JWT, {
+  return jwt.sign({ id: payload.id }, JWT, {
     expiresIn,
-    jwtid: jwtId
+    jwtid: jwtId,
   });
 };
 
@@ -46,16 +61,16 @@ export const generateToken = (payload: Omit<TokenPayload, 'jti'> & { expire?: st
  * @param token - The JWT string to decode.
  * @returns The decoded token payload (including id, jti, iat, exp) or null if verification fails.
  */
-export const decodeToken = (token: string): TokenPayload & { iat: number, exp: number } | null => {
+export const decodeToken = (
+  token: string
+): (TokenPayload & { iat: number; exp: number }) | null => {
   try {
-    // Verify the token and type assert to include standard JWT claims (iat, exp)
-    // along with our custom TokenPayload fields.
-    const decoded = jwt.verify(token, JWT) as TokenPayload & {iat: number, exp: number};
+    const decoded = jwt.verify(token, JWT) as TokenPayload & {
+      iat: number;
+      exp: number;
+    };
     return decoded;
   } catch (error) {
-    // Invalid token (e.g., malformed, expired, signature mismatch).
-    // Server-side logging of this error can be done here or in the calling function if needed.
-    // logger.warn({ err: error, tokenAttempted: token }, "Failed to decode or verify token");
     return null;
   }
 };
@@ -65,28 +80,23 @@ export const decodeToken = (token: string): TokenPayload & { iat: number, exp: n
  * @param req - The Express request object.
  * @returns The decoded token payload or null if the token is missing, malformed, or invalid.
  */
-export const getDecodedTokenFromRequest = (req: Request): TokenPayload & { iat: number, exp: number } | null => {
+export const getDecodedTokenFromRequest = (
+  req: Request
+): (TokenPayload & { iat: number; exp: number }) | null => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      // No Authorization header present.
       return null;
     }
 
     const parts = authHeader.split(" ");
-    // Expecting "Bearer <token>" format.
     if (parts.length !== 2 || parts[0] !== "Bearer") {
-      // Invalid format.
-      // logger.warn({ authHeaderFormat: authHeader }, "Invalid authorization header format");
       return null;
     }
 
     const token = parts[1];
     return decodeToken(token);
   } catch (error: any) {
-    // This catch block is more for unexpected errors during header processing,
-    // as decodeToken itself handles JWT verification errors and returns null.
-    // logger.error({ err: error }, "Unexpected error in getDecodedTokenFromRequest");
     return null;
   }
 };
