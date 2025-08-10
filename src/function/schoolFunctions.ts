@@ -53,3 +53,25 @@ export const validateSection = async (classId: string, sectionId: string) => {
     where: { id: sectionId, classId },
   });
 };
+
+export const checkIfAdminAction = async (reqToken: any) => {
+  let isAdminAction = false;
+  if (reqToken) {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: reqToken,
+      },
+      include: {
+        userSchools: true,
+      },
+    });
+    if (
+      user?.isSuperAdmin ||
+      user?.userSchools?.some((school) => school.role.includes("admin"))
+    ) {
+      isAdminAction = true;
+    }
+  }
+
+  return isAdminAction;
+};

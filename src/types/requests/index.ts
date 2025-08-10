@@ -25,17 +25,6 @@ export interface IUserRequest {
   isSuperAdmin?: boolean;
 }
 
-// Role Request
-// export interface IRoleRequest {
-//   name: string;
-//   schoolId: ID;
-//   permissionIds?: string[];
-// }
-
-// Permission Request
-// export interface IPermissionRequest {
-//   name: string;
-// }
 
 // Student Request
 export interface IStudentRequest extends IUserRequest {
@@ -86,7 +75,7 @@ export interface IStaffRequest extends IUserRequest {
   isActive?: boolean;
   qualification?: string;
   notes?: string;
-  section_id?: string;
+  classSectionId?: string;
 }
 
 // Parent Request
@@ -106,14 +95,14 @@ export interface IUserSchoolRequest {
 
 export interface TermRequest {
   id?: string;
-  label: string;
+  name: string;
   start_date: Date;
   end_date: Date;
   isActive: boolean;
 }
 
 export interface SessionRequest {
-  label: string;
+  name: string;
   start_date: Date;
   end_date: Date;
   isActive: boolean;
@@ -121,7 +110,7 @@ export interface SessionRequest {
 }
 
 export interface classSchoolRequest {
-  label: string;
+  name: string;
   section: string;
   schoolId: string[];
   teacherId?: string
@@ -147,6 +136,7 @@ export interface PromoteStudentRequest {
   fromClassId: string;
   toClassId: string;
   sectionId: string;
-  termId?: string;
+  promoteSessionId: string;
+  promoteTermId: string;
   promotedBy: string;
 }

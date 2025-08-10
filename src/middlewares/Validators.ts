@@ -74,7 +74,7 @@ export const validateCreateSchool = [
     .isLength({ max: 255 })
     .withMessage("Address must be a string with max length 255"),
   body("isActive").isBoolean().withMessage("isActive must be a boolean"),
-  body("adminId") // Optional ID of an admin to be linked to this school upon creation.
+  body("adminId")
     .optional()
     .isString()
     .withMessage("Admin ID must be a string")
@@ -302,7 +302,7 @@ export const validateStaffSignUp = [
     .withMessage("Notes must be a string")
     .isLength({ max: 2000 })
     .withMessage("Notes max length is 2000"),
-  body("section_id") 
+  body("classSectionId")
     .optional()
     .isString()
     .withMessage("Section Id must be a string")
@@ -312,7 +312,140 @@ export const validateStaffSignUp = [
   handleValidationErrors,
 ];
 
-// Validation rules for Student Signup. Includes student details and guardian information.
+export const validateUpdateStaff = [
+  body("email")
+    .optional()
+    .isEmail()
+    .withMessage("Valid email is required")
+    .isLength({ max: 254 })
+    .withMessage("Email max length is 254"),
+
+  body("password")
+    .optional()
+    .isLength({ min: 6, max: 128 })
+    .withMessage("Password must be between 6 and 128 characters long"),
+
+  body("username")
+    .optional()
+    .isString()
+    .withMessage("Username must be string")
+    .isLength({ max: 50 })
+    .withMessage("Username max length is 50"),
+
+  body("schoolId")
+    .optional()
+    .isString()
+    .withMessage("School ID must be string")
+    .isLength({ max: 50 })
+    .withMessage("School ID max length is 50"),
+
+  body("role")
+    .optional()
+    .isString()
+    .withMessage("Role must be string")
+    .isLength({ max: 50 })
+    .withMessage("Role max length is 50")
+    .isIn(Object.values(UserRole))
+    .withMessage(`Role must be one of: ${Object.values(UserRole).join(", ")}`),
+
+  body("name")
+    .optional()
+    .isString()
+    .withMessage("Name must be a string")
+    .isLength({ max: 100 })
+    .withMessage("Name max length is 100"),
+
+  body("phone")
+    .optional()
+    .isArray()
+    .withMessage("Phone must be an array of strings")
+    .custom((value: string[]) => {
+      if (
+        !value.every(
+          (v) => typeof v === "string" && v.length > 0 && v.length <= 20
+        )
+      ) {
+        throw new Error(
+          "All phone numbers must be valid strings with max length 20."
+        );
+      }
+      return true;
+    }),
+
+  body("address")
+    .optional()
+    .isString()
+    .withMessage("Address must be a string")
+    .isLength({ max: 255 })
+    .withMessage("Address max length is 255"),
+
+  body("gender")
+    .optional()
+    .isString()
+    .isIn(Object.values(Gender))
+    .withMessage(`Gender must be one of: ${Object.values(Gender).join(", ")}`),
+
+  body("designation")
+    .optional()
+    .isString()
+    .withMessage("Designation must be a string")
+    .isLength({ max: 100 })
+    .withMessage("Designation max length is 100"),
+
+  body("dob")
+    .optional()
+    .isDate()
+    .withMessage("Date of birth must be a valid date"),
+
+  body("salary")
+    .optional()
+    .isNumeric()
+    .withMessage("Salary must be a number"),
+
+  body("joining_date")
+    .optional()
+    .isDate()
+    .withMessage("Joining date must be a valid date"),
+
+  body("photo_url")
+    .optional()
+    .isString()
+    .withMessage("Photo URL must be a string")
+    .isURL()
+    .withMessage("Photo URL must be a valid URL")
+    .isLength({ max: 2048 })
+    .withMessage("Photo URL max length is 2048"),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  body("qualification")
+    .optional()
+    .isString()
+    .withMessage("Qualification must be a string")
+    .isLength({ max: 255 })
+    .withMessage("Qualification max length is 255"),
+
+  body("notes")
+    .optional()
+    .isString()
+    .withMessage("Notes must be a string")
+    .isLength({ max: 2000 })
+    .withMessage("Notes max length is 2000"),
+
+  body("classSectionId")
+    .optional()
+    .isString()
+    .withMessage("Section Id must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Section ID max length is 50"),
+
+  handleValidationErrors,
+];
+
+
 export const validateStudentSignUp = [
   // Student's own credentials and basic info
   body("email")
@@ -353,7 +486,7 @@ export const validateStudentSignUp = [
     .withMessage("Gender is required")
     .isString()
     .trim()
-    .isIn(Object.values(Gender)) // Validates against Prisma's Gender enum.
+    .isIn(Object.values(Gender))
     .withMessage(`Gender must be one of: ${Object.values(Gender).join(", ")}`),
   body("dob")
     .notEmpty()
@@ -470,7 +603,7 @@ export const validateStudentSignUp = [
     .withMessage("Room ID must be a string")
     .isLength({ max: 50 })
     .withMessage("Room ID max length is 50"),
-  body("added_by") // ID of the user who added this student, if applicable.
+  body("added_by")
     .optional()
     .isString()
     .withMessage("Added by must be a string")
@@ -486,12 +619,12 @@ export const validateStudentSignUp = [
     .withMessage("Photo URL max length is 2048"),
 
   // Guardian Details Section
-  body("exist_guardian") // Boolean indicating if an existing guardian account is being used.
+  body("exist_guardian")
     .notEmpty()
     .withMessage("exist_guardian is required")
     .isBoolean()
     .withMessage("exist_guardian must be a boolean"),
-  // Conditional validation: these fields are required only if exist_guardian is false (i.e., creating a new guardian).
+
   body("guardian_name")
     .if((value, { req }) => req.body.exist_guardian === false)
     .notEmpty()
@@ -501,8 +634,8 @@ export const validateStudentSignUp = [
     .isLength({ max: 100 })
     .withMessage("Guardian's name max length is 100")
     .trim()
-    .bail() // Stop validation if this fails and it's a new guardian scenario.
-    .optional(), // Make it optional overall, as it depends on `exist_guardian`.
+    .bail()
+    .optional(),
   body("guardian_phone")
     .if((value, { req }) => req.body.exist_guardian === false)
     .notEmpty()
@@ -523,8 +656,7 @@ export const validateStudentSignUp = [
     })
     .bail()
     .optional(),
-  // These guardian fields are always required, regardless of `exist_guardian` value,
-  // as they are used to either find an existing guardian or create a new one.
+
   body("guardian_email")
     .notEmpty()
     .withMessage("Guardian email is required")
@@ -550,6 +682,73 @@ export const validateStudentSignUp = [
   handleValidationErrors,
 ];
 
+export const validateStudentUpdate = [
+  body("email")
+    .optional()
+    .isEmail()
+    .withMessage("Student email must be valid")
+    .isLength({ max: 254 }),
+
+  body("username")
+    .optional()
+    .isString()
+    .isLength({ min: 3, max: 50 })
+    .withMessage("Student username must be 3-50 characters"),
+
+  body("password")
+    .optional()
+    .isLength({ min: 6, max: 128 })
+    .withMessage("Student password must be 6-128 characters"),
+
+  body("schoolId").optional().isString().isLength({ max: 50 }),
+
+  body("name").optional().isString().isLength({ max: 100 }).trim(),
+
+  body("gender").optional().isString().isIn(Object.values(Gender)),
+
+  body("dob").optional().isISO8601().withMessage("Date of birth must be valid"),
+
+  body("phone").optional().isString().isLength({ max: 20 }),
+
+  body("address").optional().isString().isLength({ max: 255 }).trim(),
+
+  body("admission_date").optional().isISO8601(),
+
+  body("classId").optional().isString().isLength({ max: 50 }),
+
+  body("sectionId").optional().isString().isLength({ max: 50 }),
+
+  body("religion").optional().isString().isLength({ max: 50 }).trim(),
+
+  body("blood_group").optional().isString().isLength({ max: 10 }),
+
+  body("father_name").optional().isString().isLength({ max: 100 }),
+
+  body("mother_name").optional().isString().isLength({ max: 100 }),
+
+  body("father_occupation").optional().isString().isLength({ max: 100 }),
+
+  body("mother_occupation").optional().isString().isLength({ max: 100 }),
+
+  body("isActive").optional().isBoolean(),
+
+  body("city").optional().isString().isLength({ max: 100 }).trim(),
+
+  body("state").optional().isString().isLength({ max: 100 }).trim(),
+
+  body("country").optional().isString().isLength({ max: 100 }).trim(),
+
+  body("route_vehicle_id").optional().isString().isLength({ max: 50 }),
+
+  body("room_id").optional().isString().isLength({ max: 50 }),
+
+  body("added_by").optional().isString().isLength({ max: 50 }),
+
+  body("photo_url").optional().isString().isURL().isLength({ max: 2048 }),
+
+  handleValidationErrors,
+];
+
 // Validation for verifying an email OTP.
 export const validateVerifyEmailOTP = [
   body("userId")
@@ -571,20 +770,20 @@ export const validateVerifyEmailOTP = [
 
 // Validation for resending an OTP.
 export const validateResendOTP = [
-  body("type") // Type of OTP to resend (e.g., for email verification or password reset).
+  body("type")
     .trim()
     .notEmpty()
     .withMessage("type is required")
     .isIn(["email_verification", "password_reset"])
     .withMessage("type can only be email_verification or password_reset"),
-  body("id") // User ID, required if type is 'email_verification'.
+  body("id")
     .if(body("type").equals("email_verification"))
     .trim()
     .notEmpty()
     .withMessage("Id is required for email verification")
     .isLength({ max: 50 })
     .withMessage("ID max length is 50"),
-  body("email") // User email, required if type is 'password_reset'.
+  body("email")
     .if(body("type").equals("password_reset"))
     .trim()
     .notEmpty()
@@ -633,11 +832,10 @@ export const validateSignIn = [
     .trim()
     .notEmpty()
     .withMessage("Email or Username is required")
-    .isLength({ max: 254 }) // Max length accommodates email; username should be shorter.
+    .isLength({ max: 254 })
     .custom((value) => {
-      // Custom logic to check if it's a valid email or a plausible username.
       const isEmail = validator.isEmail(value);
-      const isUsername = typeof value === "string" && value.length >= 3; // Basic username check
+      const isUsername = typeof value === "string" && value.length >= 3;
       if (!isEmail && !isUsername) {
         throw new Error(
           "Must be a valid email or a username (at least 3 characters)"
@@ -668,7 +866,7 @@ export const validateCreateSession = [
     .trim()
     .notEmpty()
     .withMessage("Start date is required")
-    .isISO8601() // Expecting ISO8601 date format
+    .isISO8601()
     .withMessage("Start date must be a valid ISO8601 date"),
   body("end_date")
     .trim()
@@ -680,14 +878,13 @@ export const validateCreateSession = [
     .optional()
     .isBoolean()
     .withMessage("Is active must be a boolean"),
-  body("terms") // Expects an array of term objects.
-    .isArray({ min: 1 }) // At least one term is required.
+  body("terms")
+    .isArray({ min: 1 })
     .withMessage("At least one term must be provided")
     .custom(
       (
         terms: Array<{ label: string; start_date: string; end_date: string }>
       ) => {
-        // Custom validation for each term in the array.
         terms.forEach((term) => {
           if (
             !term.label ||
@@ -722,7 +919,7 @@ export const validateUpdateSession = [
   param("id")
     .isString()
     .isLength({ max: 50 })
-    .withMessage("Session ID (param) max length 50"), // Added length check for param
+    .withMessage("Session ID (param) max length 50"),
   body("label")
     .optional()
     .isString()
@@ -741,7 +938,7 @@ export const validateUpdateSession = [
     .optional()
     .isBoolean()
     .withMessage("Is active must be a boolean"),
-  body("terms") // Terms array is optional for update, but if provided, elements must be valid.
+  body("terms")
     .optional()
     .isArray()
     .withMessage("Terms must be an array")
@@ -756,7 +953,6 @@ export const validateUpdateSession = [
         }>
       ) => {
         terms.forEach((term) => {
-          // For updates, term.id might be present to identify existing terms.
           if (term.id && (typeof term.id !== "string" || term.id.length > 50))
             throw new Error(
               `Term ID "${term.id}" must be a string with max length 50 if provided.`
@@ -819,7 +1015,6 @@ export const validateDeleteTerm = [
   handleValidationErrors,
 ];
 
-
 /**
  * Validation rules for creating a new class.
  * - `label`: Name of the class (e.g., "Grade 10").
@@ -835,78 +1030,6 @@ export const validateCreateClass = [
     .withMessage("Label must be a string")
     .isLength({ max: 100 })
     .withMessage("Class label max length is 100"),
-  body("section") // Comma-separated string of section labels.
-    .optional()
-    .isString()
-    .withMessage(
-      "Section, if provided, must be a string of comma-separated labels."
-    )
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage("Section string max length is 500.")
-    .custom((value: string) => {
-      // Validates each individual section label within the string.
-      if (value === "") return true;
-      const sections = value.split(",").map((sec) => sec.trim());
-      if (!sections.every((sec) => sec.length > 0 && sec.length <= 50)) {
-        throw new Error(
-          "Each section label (comma-separated) must be 1-50 characters long."
-        );
-      }
-      if (sections.some((sec) => !/^[a-zA-Z0-9\s_.-]+$/.test(sec))) {
-        // Basic character set for labels.
-        throw new Error(
-          "Section labels can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
-        );
-      }
-      return true;
-    }),
-  body("schoolId") // Expects an array of school IDs.
-    .notEmpty()
-    .withMessage("At least one School ID is required.")
-    .isArray({ min: 1 })
-    .withMessage("schoolId must be an array with at least one ID.")
-    .custom((value: string[]) => {
-      // Validates each school ID in the array.
-      if (
-        !value.every(
-          (item) =>
-            typeof item === "string" && item.length > 0 && item.length <= 50
-        )
-      ) {
-        throw new Error(
-          "Each school ID must be a valid string with max length 50."
-        );
-      }
-      return true;
-    }),
-  body("teacherId")
-    .optional()
-    .isString()
-    .withMessage("Teacher ID must be a string")
-    .isLength({ max: 50 })
-    .withMessage("Teacher ID max length is 50"),
-
-  handleValidationErrors,
-];
-
-// Validation rules for updating an existing class.
-export const validateUpdateClass = [
-  param("id") // Class ID from URL parameter.
-    .notEmpty()
-    .withMessage("Class ID is required")
-    .isString()
-    .withMessage("Class ID must be a string")
-    .isLength({ max: 50 })
-    .withMessage("Class ID max length is 50"),
-  body("label")
-    .optional()
-    .isString()
-    .withMessage("Label must be a string")
-    .isLength({ max: 100 })
-    .withMessage("Label max length is 100"),
-  // Section updates are handled by specific logic in controller; `section` field here might update all sections or specific ones.
-  // The controller's `updateClass` has specific logic for section string processing.
   body("section")
     .optional()
     .isString()
@@ -931,7 +1054,74 @@ export const validateUpdateClass = [
       }
       return true;
     }),
-  body("teacherId") // Optional: if provided, might apply to newly created sections during update.
+  body("schoolId")
+    .notEmpty()
+    .withMessage("At least one School ID is required.")
+    .isArray({ min: 1 })
+    .withMessage("schoolId must be an array with at least one ID.")
+    .custom((value: string[]) => {
+      if (
+        !value.every(
+          (item) =>
+            typeof item === "string" && item.length > 0 && item.length <= 50
+        )
+      ) {
+        throw new Error(
+          "Each school ID must be a valid string with max length 50."
+        );
+      }
+      return true;
+    }),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  handleValidationErrors,
+];
+
+// Validation rules for updating an existing class.
+export const validateUpdateClass = [
+  param("id")
+    .notEmpty()
+    .withMessage("Class ID is required")
+    .isString()
+    .withMessage("Class ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Class ID max length is 50"),
+  body("label")
+    .optional()
+    .isString()
+    .withMessage("Label must be a string")
+    .isLength({ max: 100 })
+    .withMessage("Label max length is 100"),
+  body("section")
+    .optional()
+    .isString()
+    .withMessage(
+      "Section, if provided, must be a string of comma-separated labels."
+    )
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage("Section string max length is 500.")
+    .custom((value: string) => {
+      if (value === "") return true;
+      const sections = value.split(",").map((sec) => sec.trim());
+      if (!sections.every((sec) => sec.length > 0 && sec.length <= 50)) {
+        throw new Error(
+          "Each section label (comma-separated) must be 1-50 characters long."
+        );
+      }
+      if (sections.some((sec) => !/^[a-zA-Z0-9\s_.-]+$/.test(sec))) {
+        throw new Error(
+          "Section labels can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
+        );
+      }
+      return true;
+    }),
+  body("teacherId")
     .optional()
     .isString()
     .withMessage("Teacher ID must be a string")
@@ -942,10 +1132,6 @@ export const validateUpdateClass = [
 
 // Validation rules for transferring a student.
 export const validateTransferStudent = [
-  // Assuming studentId here refers to a single student ID for the transfer operation.
-  // If batch transfer of multiple students is intended, this should be an array.
-  // Current controller logic for transferStudent seems to process `studentId` as an array.
-  // Adjusting validator to expect an array to match controller.
   body("studentId")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
@@ -994,35 +1180,8 @@ export const validateTransferStudent = [
   handleValidationErrors,
 ];
 
-// Validation rules for enrolling a student (seems to be for a single student).
-export const validateEnrollStudent = [
-  body("studentId")
-    .notEmpty()
-    .withMessage("Student ID is required")
-    .isString()
-    .withMessage("Student ID must be a string")
-    .isLength({ max: 50 })
-    .withMessage("Student ID max length is 50"),
-  body("classId")
-    .notEmpty()
-    .withMessage("Class ID is required")
-    .isString()
-    .withMessage("Class ID must be a string")
-    .isLength({ max: 50 })
-    .withMessage("Class ID max length is 50"),
-  body("sectionId")
-    .notEmpty()
-    .withMessage("Section ID is required")
-    .isString()
-    .withMessage("Section ID must be a string")
-    .isLength({ max: 50 })
-    .withMessage("Section ID max length is 50"),
-  handleValidationErrors,
-];
-
-// Validation rules for promoting student(s).
+// Validation for promoting student(s).
 export const validatePromoteStudent = [
-  // Controller expects studentId to be an array.
   body("studentId")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
@@ -1041,7 +1200,7 @@ export const validatePromoteStudent = [
       }
       return true;
     }),
-  body("fromClassId") // Might be derived backend-side based on student's current enrollment.
+  body("fromClassId")
     .optional()
     .isString()
     .withMessage("From class ID must be a string")
@@ -1054,24 +1213,38 @@ export const validatePromoteStudent = [
     .withMessage("To class ID must be a string")
     .isLength({ max: 50 })
     .withMessage("To class ID max length is 50"),
-  body("sectionId") // Target section ID in the new class.
+  body("sectionId")
     .notEmpty()
     .withMessage("Target Section ID is required")
     .isString()
     .withMessage("Section ID must be a string")
     .isLength({ max: 50 })
     .withMessage("Section ID max length is 50"),
+  body("promoteSessionId")
+    .notEmpty()
+    .withMessage("Promote session ID is required")
+    .isString()
+    .withMessage("Promote session ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Promote session ID max length is 50"),
+  body("promoteTermId")
+    .notEmpty()
+    .withMessage("Promote term ID is required")
+    .isString()
+    .withMessage("Promote term ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Promote term ID max length is 50"),
   handleValidationErrors,
 ];
 
 // Validation rules for sending bulk messages.
 export const validateSendBulkMessage = [
-  body("recipients") // Object defining target recipients (e.g., by IDs, class, school).
+  body("recipients")
     .notEmpty()
     .withMessage("Recipients are required")
     .isObject()
     .withMessage("Recipients must be an object"),
-  body("recipients.staffIds") // Optional array of staff IDs.
+  body("recipients.staffIds")
     .optional()
     .isArray()
     .withMessage("Staff IDs must be an array of strings")
@@ -1089,7 +1262,7 @@ export const validateSendBulkMessage = [
       }
       return true;
     }),
-  body("recipients.studentIds") // Optional array of student IDs.
+  body("recipients.studentIds")
     .optional()
     .isArray()
     .withMessage("Student IDs must be an array of strings")
@@ -1107,13 +1280,13 @@ export const validateSendBulkMessage = [
       }
       return true;
     }),
-  body("recipients.classId") // Optional class ID to target all students in a class.
+  body("recipients.classId")
     .optional()
     .isString()
     .withMessage("Class ID must be a string")
     .isLength({ max: 50 })
     .withMessage("Class ID max length is 50"),
-  body("recipients.schoolId") // Optional school ID to target all students/staff in a school.
+  body("recipients.schoolId")
     .optional()
     .isString()
     .withMessage("School ID must be a string")
@@ -1133,7 +1306,7 @@ export const validateSendBulkMessage = [
     .withMessage("Message must be a string")
     .isLength({ max: 5000 })
     .withMessage("Message max length is 5000"),
-  body("category") // Message category, validated against NotificationCategory enum.
+  body("category")
     .notEmpty()
     .withMessage("Category is required")
     .isString()
@@ -1143,11 +1316,10 @@ export const validateSendBulkMessage = [
     .withMessage(
       `Category must be one of: ${Object.values(NotificationCategory).join(", ")}`
     ),
-  body("channels") // Array of channels (EMAIL, IN_APP, BOTH), validated against NotificationType enum.
+  body("channels")
     .isArray({ min: 1 })
     .withMessage("Channels must be a non-empty array")
     .custom((value: string[]) => {
-      // Validates each channel against NotificationType enum values.
       if (
         !value.every((channel) =>
           Object.values(NotificationType).includes(channel as NotificationType)
@@ -1159,7 +1331,7 @@ export const validateSendBulkMessage = [
       }
       return true;
     }),
-  body("scheduledAt") // Optional: if provided, message is scheduled for later delivery.
+  body("scheduledAt")
     .optional()
     .isISO8601()
     .withMessage("Scheduled time must be a valid ISO 8601 date"),
@@ -1168,13 +1340,13 @@ export const validateSendBulkMessage = [
 
 // Validation rules for fetching notifications for a user (query parameters).
 export const validateGetNotificationsForUser = [
-  query("category") // Optional filter by notification category.
+  query("category")
     .optional()
     .isString()
     .withMessage("Category must be a string")
     .isLength({ max: 50 })
     .withMessage("Category max length is 50")
-    .isIn(Object.values(NotificationCategory)) // Validates against NotificationCategory enum.
+    .isIn(Object.values(NotificationCategory))
     .withMessage(
       `Category must be one of: ${Object.values(NotificationCategory).join(", ")}`
     ),
@@ -1183,12 +1355,12 @@ export const validateGetNotificationsForUser = [
     .isString()
     .withMessage("Status must be a string")
     .isLength({ max: 20 })
-    .withMessage("Status max length is 20"), // e.g., "read", "unread"
-  query("startDate") // Optional filter for notification creation date range.
+    .withMessage("Status max length is 20"),
+  query("startDate")
     .optional()
     .isISO8601()
     .withMessage("Start date must be a valid ISO 8601 date"),
-  query("endDate") // Optional filter for notification creation date range.
+  query("endDate")
     .optional()
     .isISO8601()
     .withMessage("End date must be a valid ISO 8601 date"),

@@ -14,6 +14,7 @@ import {
 } from "../function/token";
 import { PrismaClient, UserRole as PrismaUserRoleEnum } from "@prisma/client";
 import {
+  checkIfAdminAction,
   findActiveSession,
   validateSchool,
   validateSection,
@@ -168,6 +169,7 @@ const createParentAccount = async (
  */
 const _createStudentAndEnrollment = async (
   tx: PrismaTransactionClient,
+  isAdminAction: boolean,
   userId: string,
   parentId: string,
   studentData: any,
@@ -191,7 +193,7 @@ const _createStudentAndEnrollment = async (
       parentId,
       dob: new Date(dob),
       admission_date: admission_date ? new Date(admission_date) : new Date(),
-      isActive: isActive ?? true,
+      isActive: isAdminAction ? isActive : false,
       ...studentDataWithoutId,
     },
   });
@@ -219,6 +221,7 @@ const _createStudentAndEnrollment = async (
  */
 const _createStudentUserAndDependenciesInTransaction = async (
   tx: PrismaTransactionClient,
+  isAdminAction: boolean,
   data: {
     email: string;
     hashedPassword?: string;
@@ -251,6 +254,7 @@ const _createStudentUserAndDependenciesInTransaction = async (
 
   const student = await _createStudentAndEnrollment(
     tx,
+    isAdminAction,
     user.id,
     parentId,
     studentData,
@@ -267,7 +271,7 @@ const _createStudentUserAndDependenciesInTransaction = async (
  * @param data - Object containing all necessary data for staff creation.
  * @returns The created User object (or just its ID).
  */
-const _createStaffUserAndDependenciesInTransaction = async (
+export const _createStaffUserAndDependenciesInTransaction = async (
   tx: PrismaTransactionClient,
   data: {
     email: string;
@@ -276,10 +280,18 @@ const _createStaffUserAndDependenciesInTransaction = async (
     schoolId: string;
     role: PrismaUserRoleEnum;
     staffProfileData: any;
+    classSectionId?: string;
   }
 ) => {
-  const { email, hashedPassword, username, schoolId, role, staffProfileData } =
-    data;
+  const {
+    email,
+    hashedPassword,
+    username,
+    schoolId,
+    role,
+    staffProfileData,
+    classSectionId,
+  } = data;
 
   const user = await tx.user.create({
     data: { email, password: hashedPassword!, username },
@@ -291,7 +303,7 @@ const _createStaffUserAndDependenciesInTransaction = async (
   });
 
   const { dob, joining_date, ...otherStaffData } = staffProfileData;
-  await tx.staff.create({
+  const staff = await tx.staff.create({
     data: {
       userId: user.id,
       ...otherStaffData,
@@ -299,6 +311,20 @@ const _createStaffUserAndDependenciesInTransaction = async (
       joining_date: joining_date ? new Date(String(joining_date)) : undefined,
     },
   });
+
+  if (classSectionId) {
+    const validateClassSection = await prisma.class_Section.findUnique({
+      where: { id: classSectionId },
+    });
+
+    if (validateClassSection) {
+      await tx.class_Section.update({
+        where: { id: classSectionId },
+        data: { teacherId: staff.id },
+      });
+    }
+  }
+
   return user;
 };
 
@@ -398,6 +424,8 @@ export const staffSignUp = async (
   res: Response,
   next: NextFunction
 ) => {
+  const reqToken = (req as any).user;
+  const isAdminAction = await checkIfAdminAction(reqToken);
   try {
     const {
       username,
@@ -416,6 +444,8 @@ export const staffSignUp = async (
       photo_url,
       qualification,
       notes,
+      isActive,
+      classSectionId,
     } = req.body;
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -438,6 +468,7 @@ export const staffSignUp = async (
       photo_url,
       qualification,
       notes,
+      isActive: isAdminAction ? isActive : false,
     };
 
     const newUser = await prisma.$transaction(async (tx) => {
@@ -447,6 +478,7 @@ export const staffSignUp = async (
         username,
         schoolId: school.id,
         role: role as PrismaUserRoleEnum,
+        classSectionId: isAdminAction ? classSectionId : undefined,
         staffProfileData,
       });
     });
@@ -455,12 +487,12 @@ export const staffSignUp = async (
       "Staff account created successfully."
     );
 
-    const token = generateToken({ id: newUser.id });
-
     res.status(201).json({
       success: true,
-      message: "Staff created successfully",
-      data: { userId: newUser.id, token },
+      message: isAdminAction
+        ? "Staff created successfully"
+        : "Staff created successfully, pending admin approval.",
+      data: { userId: newUser.id },
     });
   } catch (error: any) {
     logger.error({ err: error, body: req.body }, "Error in staffSignUp");
@@ -478,6 +510,9 @@ export const studentSignUp = async (
   next: NextFunction
 ) => {
   try {
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(reqToken);
+
     const {
       schoolId,
       exist_guardian,
@@ -573,7 +608,7 @@ export const studentSignUp = async (
         );
       }
 
-      return _createStudentUserAndDependenciesInTransaction(tx, {
+      return _createStudentUserAndDependenciesInTransaction(tx, isAdminAction, {
         email: email!,
         hashedPassword,
         username,
@@ -589,13 +624,14 @@ export const studentSignUp = async (
       "Student account created and enrolled successfully."
     );
 
-    const token = generateToken({ id: result.user.id });
     const responseUserData = _.omit(result.user, ["password"]);
 
     res.status(201).json({
       success: true,
-      message: "Student created successfully",
-      data: { userData: responseUserData, student: result.student, token },
+      message: isAdminAction
+        ? "Student created successfully"
+        : "Student created successfully, pending admin approval.",
+      data: { userData: responseUserData, student: result.student },
     });
   } catch (error) {
     logger.error({ err: error, body: req.body }, "Error in studentSignUp");
@@ -634,6 +670,23 @@ export const userSignIn = async (
 
     if (!user) {
       return handleError(res, "Invalid credentials. User not found.", 404);
+    }
+
+    if (!user.isSuperAdmin) {
+      if (user.staff && !user.staff.isActive) {
+        return handleError(
+          res,
+          "Your staff account is inactive, please contact school admin.",
+          401
+        );
+      }
+      if (user.student && !user.student.isActive) {
+        return handleError(
+          res,
+          "Your student account is inactive, please contact school admin.",
+          401
+        );
+      }
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);

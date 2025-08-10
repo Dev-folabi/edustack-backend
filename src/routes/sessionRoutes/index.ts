@@ -5,7 +5,7 @@ import {
   getAllSessions,
   getSession,
   getSessionById,
-  getAllTerms,
+  getSessionTerms,
   getTermById,
   updateSessionWithTerms,
   deleteTerm,
@@ -48,11 +48,11 @@ router.get("/", getSession);
 router.get("/all", getAllSessions);
 
 /**
- * @route GET /all-term
- * @description Get all terms across all sessions
+ * @route GET /:sessionId/terms
+ * @description Get all terms for a specific session
  * @access Public
  */
-router.get("/all-term", getAllTerms);
+router.get("/:sessionId/terms", getSessionTerms);
 
 /**
  * @route GET /term
