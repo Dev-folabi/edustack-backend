@@ -5,12 +5,12 @@ export const DEFAULT_TOKEN_EXPIRES_IN = "1d";
 export const SENSITIVE_ROLE_TOKEN_EXPIRES_IN = "1h";
 
 // OTP Expiry
-export const OTP_EXPIRY_SECONDS = 15 * 60; // 900 seconds
+export const OTP_EXPIRY_SECONDS = 15 * 60;
 
 // Rate Limiting Parameters (OTP)
-export const OTP_VERIFY_WINDOW_SECONDS = 15 * 60; // 15 minutes
+export const OTP_VERIFY_WINDOW_SECONDS = 15 * 60;
 export const OTP_VERIFY_MAX_ATTEMPTS = 5;
-export const OTP_RESEND_WINDOW_SECONDS = 60 * 60; // 1 hour
+export const OTP_RESEND_WINDOW_SECONDS = 60 * 60;
 export const OTP_RESEND_MAX_ATTEMPTS = 3;
 
 // School Creation Limit
@@ -27,17 +27,58 @@ export const DEFAULT_PAGE_NUMBER = 1;
 export const DEFAULT_PAGE_LIMIT = 10;
 
 // Default Cache Expiry for general items in Redis
-export const DEFAULT_REDIS_CACHE_EXPIRY_SECONDS = 5 * 60; // 5 minutes (300 seconds)
+export const DEFAULT_REDIS_CACHE_EXPIRY_SECONDS = 5 * 60;
 
 // Sensitive User Roles for token expiry, etc.
 export const SENSITIVE_USER_ROLES: ReadonlyArray<UserRole> = [
-    UserRole.super_admin,
-    UserRole.admin,
-    UserRole.finance
+  UserRole.super_admin,
+  UserRole.admin,
+  UserRole.finance,
 ];
 
-// Example of other constants that could be added:
-// export const MIN_PASSWORD_LENGTH = 6;
-// export const MAX_PASSWORD_LENGTH = 128;
-// export const MAX_EMAIL_LENGTH = 254;
-// export const MAX_GENERAL_NAME_LENGTH = 100;
+export const SUPER_ADMIN_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.super_admin,
+  UserRole.edustack,
+];
+
+export const ADMIN_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.super_admin,
+  UserRole.admin,
+  UserRole.edustack,
+];
+
+export const STAFF_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.edustack,
+  UserRole.admin,
+  UserRole.teacher,
+  UserRole.librarian,
+];
+
+export const STUDENT_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.edustack,
+  UserRole.student,
+];
+
+export const TEACHER_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.admin,
+  UserRole.edustack,
+  UserRole.teacher,
+];
+
+export const LIBRARIAN_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.admin,
+  UserRole.edustack,
+  UserRole.librarian,
+];
+
+export const FINANCE_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.admin,
+  UserRole.edustack,
+  UserRole.finance,
+];
+
+export const PARENT_ROLES: ReadonlyArray<UserRole> = [
+  UserRole.admin,
+  UserRole.edustack,
+  UserRole.parent,
+];

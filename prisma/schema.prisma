@@ -69,20 +69,20 @@ model UserSchool {
 }
 
 model User {
-  id           String              @id @default(cuid())
-  email        String?             @unique
-  username     String              @unique
-  password     String
-  userSchools  UserSchool[]
-  student      Student?
-  staff        Staff?
-  parent       Parent?
-  isSuperAdmin Boolean             @default(false)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  email             String?             @unique
+  username          String              @unique
+  password          String
+  userSchools       UserSchool[]
+  student           Student?
+  staff             Staff?
+  parent            Parent?
+  isSuperAdmin      Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   passwordChangedAt DateTime?
-  notification Notification[]
-  message      Scheduled_Message[]
+  notification      Notification[]
+  message           Scheduled_Message[]
 }
 
 model Student {
@@ -139,7 +139,7 @@ model Staff {
   isActive      Boolean         @default(true)
   qualification String?
   notes         String?
-  teacher       Class_Section[]
+  class_teacher Class_Section[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 }
@@ -158,7 +158,7 @@ model Parent {
 
 model Session {
   id         String   @id @default(cuid())
-  label      String   @unique
+  name     String   @unique
   start_date DateTime
   end_date   DateTime
   isActive   Boolean  @default(false)
@@ -172,7 +172,7 @@ model Session {
 
 model Term {
   id                String              @id @default(cuid())
-  label             String
+  name            String
   sessionId         String
   session           Session             @relation(fields: [sessionId], references: [id])
   start_date        DateTime
@@ -183,12 +183,12 @@ model Term {
   student_enrolled  StudentEnrollment[]
   promotion_history PromotionHistory[]
 
-  @@unique([label, sessionId])
+  @@unique([name, sessionId])
 }
 
 model Classes {
   id        String   @id @default(cuid())
-  label     String
+  name    String
   schoolId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -200,12 +200,12 @@ model Classes {
   schools                      School              @relation(fields: [schoolId], references: [id])
   StudentTransfer              StudentTransfer[]
 
-  @@unique([label, schoolId])
+  @@unique([name, schoolId])
 }
 
 model Class_Section {
   id            String   @id @default(cuid())
-  label         String   @default("A")
+  name        String   @default("A")
   classId       String   @map("class_id")
   teacherId     String?
   class_teacher Staff?   @relation(fields: [teacherId], references: [id])
@@ -216,7 +216,7 @@ model Class_Section {
   classes          Classes             @relation(fields: [classId], references: [id])
   StudentTransfer  StudentTransfer[]
 
-  @@unique([classId, label])
+  @@unique([classId, name])
 }
 
 model StudentEnrollment {
