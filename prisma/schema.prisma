@@ -356,7 +356,7 @@ model Subject {
   updatedAt   DateTime        @updatedAt
 
   @@index([teacherId])
-  @@unique([name])
+  @@unique([name, code])
 }
 
 model SubjectSchool {
@@ -376,8 +376,6 @@ model SubjectSection {
 
   @@id([subjectId, sectionId])
 }
-
-
 
 enum AttendanceStatus {
   PRESENT

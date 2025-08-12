@@ -54,24 +54,32 @@ export const validateSection = async (classId: string, sectionId: string) => {
   });
 };
 
-export const checkIfAdminAction = async (reqToken: any) => {
+export const checkIfAdminAction = async (reqToken: string, schoolIds?: string[]) => {
   let isAdminAction = false;
-  if (reqToken) {
-    const user = await prisma.user.findUnique({
-      where: {
-        id: reqToken,
-      },
-      include: {
-        userSchools: true,
-      },
-    });
-    if (
-      user?.isSuperAdmin ||
-      user?.userSchools?.some((school) => school.role.includes("admin"))
-    ) {
-      isAdminAction = true;
-    }
+  if (!reqToken) return false;
+
+  const user = await prisma.user.findUnique({
+    where: { id: reqToken },
+    include: { userSchools: true },
+  });
+
+  if (!user) return false;
+
+  const isAdminUser =
+    user.isSuperAdmin ||
+    user.userSchools.some((school) => school.role.toLowerCase().includes("admin"));
+
+  if (!isAdminUser) return false;
+
+  if ( !user.isSuperAdmin && schoolIds && schoolIds.length > 0) {
+
+    const userSchoolIds = user.userSchools.map((s) => s.schoolId);
+    const hasAllSchools = schoolIds.every((id) => userSchoolIds.includes(id));
+
+    if (!hasAllSchools) return false;
   }
 
+  isAdminAction = true;
   return isAdminAction;
 };
+

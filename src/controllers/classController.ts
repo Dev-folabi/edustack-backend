@@ -173,7 +173,6 @@ export const createClass = async (
           tx.classes.create({ data: { name, schoolId: schId } })
         )
       );
-      // Use the helper function to create sections
       await _createSectionsForClassesInTransaction(tx, createdClasses, section);
       return createdClasses;
     });

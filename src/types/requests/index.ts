@@ -140,3 +140,12 @@ export interface PromoteStudentRequest {
   promoteTermId: string;
   promotedBy: string;
 }
+
+export interface CreateSubjectRequest {
+  name: string;
+  code?: string;
+  isActive?: boolean;
+  teacherId?: string;
+  schoolIds: string[];
+  sectionIds: string[];
+}
