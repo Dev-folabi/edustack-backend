@@ -26,18 +26,18 @@ router.post(
   studentSignUp
 );
 
+router.put("/promote", roleAuthorization([...TEACHER_ROLES]), validatePromoteStudent, promoteStudent);
+router.put("/transfer", roleAuthorization([...ADMIN_ROLES]), validateTransferStudent, transferStudent);
+
+router.get("/:schoolId/transfer", roleAuthorization([...ADMIN_ROLES]), getTransferStudentsBySchool);
+router.get("/:schoolId/all", roleAuthorization([...TEACHER_ROLES]), getStudentsBySchool);
+
+router.get("/:studentId", roleAuthorization([...TEACHER_ROLES]), getStudentDetails);
 router.put(
   "/:studentId",
   roleAuthorization([...ADMIN_ROLES]),
   validateStudentUpdate,
   updateStudent
 );
-
-router.put("/promote", roleAuthorization([...TEACHER_ROLES]), validatePromoteStudent, promoteStudent);
-router.put("/transfer", roleAuthorization([...ADMIN_ROLES]), validateTransferStudent, transferStudent);
-
-router.get("/:studentId", roleAuthorization([...TEACHER_ROLES]), getStudentDetails);
-router.get("/:schoolId/transfer", roleAuthorization([...ADMIN_ROLES]), getTransferStudentsBySchool);
-router.get("/:schoolId/all", roleAuthorization([...TEACHER_ROLES]), getStudentsBySchool);
 
 export default router;

@@ -53,6 +53,7 @@ model School {
   updatedAt     DateTime          @updatedAt
   fromTransfers StudentTransfer[] @relation("FromSchoolRelation")
   toTransfers   StudentTransfer[] @relation("ToSchoolRelation")
+  subjects      SubjectSchool[]
 }
 
 model UserSchool {
@@ -120,12 +121,13 @@ model Student {
   student_enrolled  StudentEnrollment[]
   promotion_history PromotionHistory[]
   student_transfer  StudentTransfer[]
+  attendance        Attendance[]
 }
 
 model Staff {
-  id            String          @id @default(cuid())
-  userId        String          @unique
-  user          User            @relation(fields: [userId], references: [id])
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
   name          String
   phone         String[]
   email         String?
@@ -136,12 +138,15 @@ model Staff {
   joining_date  DateTime?
   gender        Gender?
   photo_url     String?
-  isActive      Boolean         @default(true)
+  isActive      Boolean   @default(true)
   qualification String?
   notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
   class_teacher Class_Section[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  attendance    Attendance[]
+  TeacherSubjects      Subject[]
 }
 
 model Parent {
@@ -158,7 +163,7 @@ model Parent {
 
 model Session {
   id         String   @id @default(cuid())
-  name     String   @unique
+  name       String   @unique
   start_date DateTime
   end_date   DateTime
   isActive   Boolean  @default(false)
@@ -172,7 +177,7 @@ model Session {
 
 model Term {
   id                String              @id @default(cuid())
-  name            String
+  name              String
   sessionId         String
   session           Session             @relation(fields: [sessionId], references: [id])
   start_date        DateTime
@@ -188,7 +193,7 @@ model Term {
 
 model Classes {
   id        String   @id @default(cuid())
-  name    String
+  name      String
   schoolId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -205,7 +210,7 @@ model Classes {
 
 model Class_Section {
   id            String   @id @default(cuid())
-  name        String   @default("A")
+  name          String   @default("A")
   classId       String   @map("class_id")
   teacherId     String?
   class_teacher Staff?   @relation(fields: [teacherId], references: [id])
@@ -215,6 +220,8 @@ model Class_Section {
   student_enrolled StudentEnrollment[]
   classes          Classes             @relation(fields: [classId], references: [id])
   StudentTransfer  StudentTransfer[]
+  subjects         SubjectSection[]
+  attendance       Attendance[]
 
   @@unique([classId, name])
 }
@@ -332,4 +339,73 @@ model Scheduled_Message {
   createdBy   User                 @relation(fields: [createdById], references: [id])
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
+}
+
+model Subject {
+  id          String          @id @default(cuid())
+  name        String
+  code        String?         @db.VarChar(20)
+  isActive    Boolean         @default(true)
+  schools     SubjectSchool[]
+  sections    SubjectSection[]
+  teacherId   String?         @db.VarChar(36)
+  teacher     Staff?          @relation(fields: [teacherId], references: [id])
+  attendance  Attendance[]
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([teacherId])
+  @@unique([name])
+}
+
+model SubjectSchool {
+  subjectId String
+  schoolId  String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  school    School  @relation(fields: [schoolId], references: [id])
+
+  @@id([subjectId, schoolId])
+}
+
+model SubjectSection {
+  subjectId String
+  sectionId String
+  subject   Subject       @relation(fields: [subjectId], references: [id])
+  section   Class_Section @relation(fields: [sectionId], references: [id])
+
+  @@id([subjectId, sectionId])
+}
+
+
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HOLIDAY
+  ON_LEAVE
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  date       DateTime
+  month      Int
+  year       Int
+  status     AttendanceStatus
+  notes      String?
+  studentId  String?          @db.VarChar(36)
+  staffId    String?          @db.VarChar(36)
+  student    Student?         @relation(fields: [studentId], references: [id])
+  staff      Staff?           @relation(fields: [staffId], references: [id])
+  sectionId  String?          @db.VarChar(36)
+  class_section Class_Section? @relation(fields: [sectionId], references: [id])
+  subjectId  String?          @db.VarChar(36)
+  subject    Subject?         @relation(fields: [subjectId], references: [id]) 
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([year, month, studentId])
+  @@index([year, month, staffId])
+  @@index([year, month, subjectId])
 }

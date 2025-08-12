@@ -649,7 +649,7 @@ const _validateTransferPrerequisitesAndGetContext = async (
         success: false,
         error: {
           message:
-            "All students in a batch transfer must belong to the same origin school.",
+            "All students must belong to the same origin school.",
           status: 400,
         },
       };
