@@ -13,7 +13,7 @@ export interface ISchoolRequest {
   phone: string[];
   address: string;
   isActive: boolean;
-  adminId?: string; 
+  adminId?: string;
 }
 
 // User Request
@@ -24,7 +24,6 @@ export interface IUserRequest {
   password: string;
   isSuperAdmin?: boolean;
 }
-
 
 // Student Request
 export interface IStudentRequest extends IUserRequest {
@@ -113,7 +112,7 @@ export interface classSchoolRequest {
   name: string;
   section: string;
   schoolId: string[];
-  teacherId?: string
+  teacherId?: string;
 }
 
 export interface TransferStudentRequest {
@@ -148,4 +147,32 @@ export interface CreateSubjectRequest {
   teacherId?: string;
   schoolIds: string[];
   sectionIds: string[];
+}
+
+export enum AttendanceStatus {
+  PRESENT = "PRESENT",
+  ABSENT = "ABSENT",
+  LATE = "LATE",
+  HOLIDAY = "HOLIDAY",
+  ON_LEAVE = "ON_LEAVE",
+}
+
+export interface StudentAttendanceRequest {
+  date: string;
+  sectionId: string;
+  subjectId?: string;
+  records: {
+    studentId: string;
+    status: AttendanceStatus;
+    notes?: string;
+  }[];
+}
+
+export interface StaffAttendanceRequest {
+  date: string;
+  records: {
+    staffId: string;
+    status: AttendanceStatus;
+    notes?: string;
+  }[];
 }

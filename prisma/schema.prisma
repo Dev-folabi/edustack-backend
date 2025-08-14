@@ -144,9 +144,9 @@ model Staff {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  class_teacher Class_Section[]
-  attendance    Attendance[]
-  TeacherSubjects      Subject[]
+  class_teacher   Class_Section[]
+  attendance      Attendance[]
+  TeacherSubjects Subject[]
 }
 
 model Parent {
@@ -342,21 +342,21 @@ model Scheduled_Message {
 }
 
 model Subject {
-  id          String          @id @default(cuid())
-  name        String
-  code        String?         @db.VarChar(20)
-  isActive    Boolean         @default(true)
-  schools     SubjectSchool[]
-  sections    SubjectSection[]
-  teacherId   String?         @db.VarChar(36)
-  teacher     Staff?          @relation(fields: [teacherId], references: [id])
-  attendance  Attendance[]
+  id         String           @id @default(cuid())
+  name       String
+  code       String?          @db.VarChar(20)
+  isActive   Boolean          @default(true)
+  schools    SubjectSchool[]
+  sections   SubjectSection[]
+  teacherId  String?          @db.VarChar(36)
+  teacher    Staff?           @relation(fields: [teacherId], references: [id])
+  attendance Attendance[]
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([teacherId])
   @@unique([name, code])
+  @@index([teacherId])
 }
 
 model SubjectSchool {
@@ -385,23 +385,29 @@ enum AttendanceStatus {
   ON_LEAVE
 }
 
+enum AttendanceType {
+  STUDENT
+  STAFF
+}
+
 model Attendance {
-  id         String           @id @default(cuid())
-  date       DateTime
-  month      Int
-  year       Int
-  status     AttendanceStatus
-  notes      String?
-  studentId  String?          @db.VarChar(36)
-  staffId    String?          @db.VarChar(36)
-  student    Student?         @relation(fields: [studentId], references: [id])
-  staff      Staff?           @relation(fields: [staffId], references: [id])
-  sectionId  String?          @db.VarChar(36)
-  class_section Class_Section? @relation(fields: [sectionId], references: [id])
-  subjectId  String?          @db.VarChar(36)
-  subject    Subject?         @relation(fields: [subjectId], references: [id]) 
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  date           DateTime
+  month          Int
+  year           Int
+  status         AttendanceStatus
+  notes          String?
+  studentId      String?          @db.VarChar(36)
+  staffId        String?          @db.VarChar(36)
+  student        Student?         @relation(fields: [studentId], references: [id])
+  staff          Staff?           @relation(fields: [staffId], references: [id])
+  sectionId      String?          @db.VarChar(36)
+  class_section  Class_Section?   @relation(fields: [sectionId], references: [id])
+  subjectId      String?          @db.VarChar(36)
+  subject        Subject?         @relation(fields: [subjectId], references: [id])
+  attendanceType AttendanceType
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([year, month, studentId])
   @@index([year, month, staffId])

@@ -54,7 +54,11 @@ export const validateSection = async (classId: string, sectionId: string) => {
   });
 };
 
-export const checkIfAdminAction = async (reqToken: string, schoolIds?: string[]) => {
+export const checkIfAdminAction = async (
+  reqToken: string,
+  schoolIds?: string[],
+  roles?: string[]
+) => {
   let isAdminAction = false;
   if (!reqToken) return false;
 
@@ -67,12 +71,15 @@ export const checkIfAdminAction = async (reqToken: string, schoolIds?: string[])
 
   const isAdminUser =
     user.isSuperAdmin ||
-    user.userSchools.some((school) => school.role.toLowerCase().includes("admin"));
+    user.userSchools.some(
+      (school) =>
+        school.role.toLowerCase().includes("admin") ||
+        (roles ? roles.some((r) => school.role.toLowerCase().includes(r)) : false)
+    );
 
   if (!isAdminUser) return false;
 
-  if ( !user.isSuperAdmin && schoolIds && schoolIds.length > 0) {
-
+  if (!user.isSuperAdmin && schoolIds && schoolIds.length > 0) {
     const userSchoolIds = user.userSchools.map((s) => s.schoolId);
     const hasAllSchools = schoolIds.every((id) => userSchoolIds.includes(id));
 
@@ -82,4 +89,3 @@ export const checkIfAdminAction = async (reqToken: string, schoolIds?: string[])
   isAdminAction = true;
   return isAdminAction;
 };
-

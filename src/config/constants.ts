@@ -82,3 +82,8 @@ export const PARENT_ROLES: ReadonlyArray<UserRole> = [
   UserRole.edustack,
   UserRole.parent,
 ];
+
+export const ATTENDANCE_TYPE = {
+  STUDENT: "STUDENT",
+  STAFF: "STAFF"
+} as const;

@@ -7,6 +7,7 @@ import {
   NotificationCategory,
   NotificationType,
 } from "@prisma/client";
+import isBoolean from "validator/lib/isBoolean";
 
 /**
  * Middleware to handle the results of express-validator validations.
@@ -397,10 +398,7 @@ export const validateUpdateStaff = [
     .isDate()
     .withMessage("Date of birth must be a valid date"),
 
-  body("salary")
-    .optional()
-    .isNumeric()
-    .withMessage("Salary must be a number"),
+  body("salary").optional().isNumeric().withMessage("Salary must be a number"),
 
   body("joining_date")
     .optional()
@@ -444,7 +442,6 @@ export const validateUpdateStaff = [
 
   handleValidationErrors,
 ];
-
 
 export const validateStudentSignUp = [
   // Student's own credentials and basic info
@@ -1364,5 +1361,241 @@ export const validateGetNotificationsForUser = [
     .optional()
     .isISO8601()
     .withMessage("End date must be a valid ISO 8601 date"),
+  handleValidationErrors,
+];
+
+export const validateCreateSubject = [
+  body("name")
+    .notEmpty()
+    .withMessage("Subject name is required")
+    .isString()
+    .withMessage("Subject name must be a string")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Subject name must be between 1 and 100 characters")
+    .trim(),
+
+  body("code")
+    .notEmpty()
+    .withMessage("Subject code is required")
+    .isString()
+    .withMessage("Subject code must be a string")
+    .isLength({ min: 1, max: 20 })
+    .withMessage("Subject code must be between 1 and 20 characters")
+    .trim(),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  body("schoolIds")
+    .notEmpty()
+    .withMessage("School IDs are required")
+    .isArray()
+    .withMessage("School IDs must be an array")
+    .custom((value: string[]) => {
+      if (!value.length) {
+        throw new Error("At least one school ID is required");
+      }
+      if (!value.every((id) => typeof id === "string" && id.length <= 50)) {
+        throw new Error(
+          "All school IDs must be valid strings with max length 50"
+        );
+      }
+      return true;
+    }),
+
+  body("sectionIds")
+    .notEmpty()
+    .withMessage("Section IDs are required")
+    .isArray()
+    .withMessage("Section IDs must be an array")
+    .custom((value: string[]) => {
+      if (!value.length) {
+        throw new Error("At least one section ID is required");
+      }
+      if (!value.every((id) => typeof id === "string" && id.length <= 50)) {
+        throw new Error(
+          "All section IDs must be valid strings with max length 50"
+        );
+      }
+      return true;
+    }),
+
+  handleValidationErrors,
+];
+
+export const validateGetSubjects = [
+  query("schoolId")
+    .optional()
+    .isString()
+    .withMessage("School ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("School ID max length is 50"),
+
+  query("sectionId")
+    .optional()
+    .isString()
+    .withMessage("Section ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Section ID max length is 50"),
+
+  query("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  query("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Page must be a positive integer"),
+
+  query("limit")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Limit must be a positive integer"),
+
+  handleValidationErrors,
+];
+
+export const validateUpdateSubjects = [
+  body("id")
+    .isArray()
+    .withMessage("id must be an array of strings")
+    .custom((value: string[]) => {
+      if (!value.length) {
+        throw new Error("At least one subject ID is required");
+      }
+      if (!value.every((id) => typeof id === "string" && id.length <= 50)) {
+        throw new Error(
+          "All subject IDs must be valid strings with max length 50"
+        );
+      }
+      return true;
+    }),
+
+  body("name")
+    .optional()
+    .isString()
+    .withMessage("Name must be a string")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Name must be between 1 and 100 characters")
+    .trim(),
+
+  body("code")
+    .optional()
+    .isString()
+    .withMessage("Code must be a string")
+    .isLength({ min: 1, max: 20 })
+    .withMessage("Code must be between 1 and 20 characters")
+    .trim(),
+
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+
+  handleValidationErrors,
+];
+
+export const validateAssignTeacherToSubject = [
+  param("id")
+    .notEmpty()
+    .withMessage("Subject ID is required")
+    .isString()
+    .withMessage("Subject ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Subject ID max length is 50"),
+
+  body("teacherId")
+    .notEmpty()
+    .withMessage("Teacher ID is required")
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  handleValidationErrors,
+];
+
+// Validator for section attendance
+export const validateSectionAttendance = [
+  body("sectionId").isUUID().withMessage("Invalid section ID"),
+  body("date").isISO8601().withMessage("Invalid date format, must be in YYYY-MM-DD format"),
+  body("records").isArray().withMessage("Records must be an array"),
+  body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
+  body("records.*.status")
+    .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
+    .withMessage("Invalid attendance status"),
+
+  handleValidationErrors,
+];
+
+// Validator for subject attendance
+export const validateSubjectAttendance = [
+  body("sectionId").isUUID().withMessage("Invalid section ID"),
+  body("subjectId").isUUID().withMessage("Invalid subject ID"),
+  body("date").isISO8601().withMessage("Invalid date format, must be in YYYY-MM-DD format"),
+  body("records").isArray().withMessage("Records must be an array"),
+  body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
+  body("records.*.status")
+    .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
+    .withMessage("Invalid attendance status"),
+
+  handleValidationErrors,
+];
+
+// Validator for staff attendance
+export const validateStaffAttendance = [
+  body("date").isISO8601().withMessage("Invalid date format"),
+  body("records").isArray().withMessage("Records must be an array"),
+  body("records.*.staffId").isUUID().withMessage("Invalid staff ID"),
+  body("records.*.status")
+    .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
+    .withMessage("Invalid attendance status"),
+    body("records.*.note").optional().isString().withMessage("Note must be a string"),
+
+  handleValidationErrors,
+];
+
+// Validator for viewing student attendance
+export const validateGetStudentAttendance = [
+  query("sectionId").isUUID().withMessage("Invalid section ID"),
+  query("date").optional().isISO8601().withMessage("Invalid date format"),
+  query("subjectId").optional().isUUID().withMessage("Invalid subject ID"),
+  query("month")
+    .optional()
+    .isInt({ min: 1, max: 12 })
+    .withMessage("Invalid month"),
+  query("year").optional().isInt({ min: 2000 }).withMessage("Invalid year"),
+  query("studentId").optional().isUUID().withMessage("Invalid student ID"),
+
+  handleValidationErrors,
+];
+
+// Validator for viewing staff attendance
+export const validateGetStaffAttendance = [
+  query("date").optional().isISO8601().withMessage("Invalid date format"),
+  query("month")
+    .optional()
+    .isInt({ min: 1, max: 12 })
+    .withMessage("Invalid month"),
+  query("year").optional().isInt({ min: 2000 }).withMessage("Invalid year"),
+  query("staffId").optional().isUUID().withMessage("Invalid staff ID"),
+
   handleValidationErrors,
 ];
