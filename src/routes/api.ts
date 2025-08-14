@@ -6,6 +6,10 @@ import classRoutes from "./classRoutes";
 import studentRoutes from "./studentRoutes";
 import staffRoutes from "./staffRoutes";
 import notificationRoutes from "./notificationRoutes"
+import subjectRoutes from "./subjectRoutes"
+import { verifyToken } from "../middlewares/authorization";
+import attendanceRoutes from "./attendanceRoutes";
+
 const router = express.Router();
 
 router.use("/auth", authRoute);
@@ -15,4 +19,8 @@ router.use("/class", classRoutes);
 router.use("/students", studentRoutes);
 router.use("/staff", staffRoutes);
 router.use("/notify", notificationRoutes)
+router.use("/subject", verifyToken, subjectRoutes)
+router.use("/attendance", verifyToken, attendanceRoutes)
+
+
 export default router;
