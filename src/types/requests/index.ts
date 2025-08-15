@@ -1,3 +1,5 @@
+import { PeriodType, TimetableStatus, WeekDay } from "@prisma/client";
+
 type ID = string;
 // Enum for Gender
 enum Gender {
@@ -175,4 +177,36 @@ export interface StaffAttendanceRequest {
     status: AttendanceStatus;
     notes?: string;
   }[];
+}
+
+export interface TimetableEntry {
+  day: WeekDay[];
+  startTime: string;
+  endTime: string;
+  subjectId?: string;
+  teacherId?: string;
+  type: PeriodType;
+}
+
+export interface CreateTimetableRequest {
+  schoolId: string;
+  classId: string;
+  sectionId: string;
+  sessionId: string;
+  termId?: string;
+  status: TimetableStatus;
+  entries: TimetableEntry[];
+}
+
+export interface CreateEntryRequest extends TimetableEntry {
+  timetableId: string;
+}
+
+export interface UpdateEntryRequest {
+  day?: WeekDay[];
+  startTime?: string;
+  endTime?: string;
+  subjectId?: string;
+  teacherId?: string;
+  type?: PeriodType;
 }

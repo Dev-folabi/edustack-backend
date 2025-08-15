@@ -4,6 +4,12 @@ import logger from "../utils/logger";
 import { handleError } from "../error/errorHandler";
 import { checkIfAdminAction } from "../function/schoolFunctions";
 import { PrismaClient } from "@prisma/client";
+import {
+  CreateEntryRequest,
+  CreateTimetableRequest,
+  UpdateEntryRequest,
+} from "../types/requests";
+import { TEACHER_ROLES } from "../config/constants";
 
 type PrismaTransactionClient = Omit<
   PrismaClient,
@@ -15,67 +21,93 @@ type PrismaTransactionClient = Omit<
  * @route POST /api/timetables
  */
 export const createTimetable = async (
-  req: Request,
+  req: Request<{}, {}, CreateTimetableRequest>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const {
-      schoolId,
-      sectionId,
-      sessionId,
-      termId,
-      name,
-      status,
-      entries,
-    } = req.body;
+    const { schoolId, classId, sectionId, sessionId, termId, status, entries } =
+      req.body;
 
     const reqToken = (req as any).user;
-    const isAdminAction = await checkIfAdminAction(reqToken, [schoolId]);
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [schoolId],
+      [...TEACHER_ROLES]
+    );
     if (!isAdminAction) {
-      return handleError(res, "You are not authorized to create a timetable for this school.", 403);
+      return handleError(
+        res,
+        "You are not authorized to create a timetable for this school.",
+        403
+      );
     }
 
     // Validate school, section, session, term
     const [school, section, session, term] = await Promise.all([
       prisma.school.findUnique({ where: { id: schoolId, isActive: true } }),
-      prisma.class_Section.findUnique({ where: { id: sectionId } }),
+      prisma.class_Section.findUnique({ where: { id: sectionId, classId }, include: { classes: true } }),
       prisma.session.findUnique({ where: { id: sessionId } }),
-      termId ? prisma.term.findUnique({ where: { id: termId } }) : Promise.resolve(null),
+      termId
+        ? prisma.term.findUnique({ where: { id: termId } })
+        : Promise.resolve(null),
     ]);
 
     if (!school) return handleError(res, "Invalid or inactive school.", 400);
-    if (!section) return handleError(res, "Invalid section.", 400);
+    if (!section) return handleError(res, "Invalid class section.", 400);
     if (!session) return handleError(res, "Invalid session.", 400);
     if (termId && !term) return handleError(res, "Invalid term.", 400);
 
-    // Create timetable + entries
-    const timetable = await prisma.$transaction(async (tx: PrismaTransactionClient) => {
-      const createdTimetable = await tx.timetable.create({
-        data: {
-          schoolId,
-          sectionId,
-          sessionId,
-          termId,
-          name,
-          status,
-          entries: {
-            create: entries.map((e: any) => ({
-              day: e.day,
-              startTime: new Date(e.startTime),
-              endTime: new Date(e.endTime),
-              subjectId: e.subjectId,
-              teacherId: e.teacherId,
-              type: e.type,
-            })),
-          },
-        },
-        include: { entries: true },
-      });
-      return createdTimetable;
+    const existingTimetable = await prisma.timetable.findFirst({
+      where: {
+        schoolId,
+        sectionId,
+        sessionId,
+        termId,
+      },
     });
 
-    logger.info({ timetableId: timetable.id }, "Timetable created successfully.");
+    if (existingTimetable) {
+      return handleError(
+        res,
+        "A timetable for this class, session, and term already exists.",
+        400
+      );
+    }
+
+    // Create timetable + entries
+    const timetable = await prisma.$transaction(
+      async (tx: PrismaTransactionClient) => {
+        const createdTimetable = await tx.timetable.create({
+          data: {
+            schoolId,
+            classId: section.classId,
+            sectionId,
+            sessionId,
+            termId,
+            name: `${section.classes.name}-${section.name}`,
+            status,
+            entries: {
+              create: entries.map((e: any) => ({
+                day: e.day,
+                startTime: new Date(e.startTime),
+                endTime: new Date(e.endTime),
+                subjectId: e.subjectId,
+                teacherId: e.teacherId,
+                type: e.type,
+              })),
+            },
+          },
+          include: { entries: true },
+        });
+        return createdTimetable;
+      }
+    );
+
+    logger.info(
+      { timetableId: timetable.id },
+      "Timetable created successfully."
+    );
     res.status(201).json({
       success: true,
       message: "Timetable created successfully.",
@@ -90,7 +122,11 @@ export const createTimetable = async (
  * Get all timetables for a school
  * @route GET /api/timetables/school/:schoolId
  */
-export const getSchoolTimetables = async (req: Request, res: Response, next: NextFunction) => {
+export const getSchoolTimetables = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { schoolId } = req.params;
     const timetables = await prisma.timetable.findMany({
@@ -113,7 +149,11 @@ export const getSchoolTimetables = async (req: Request, res: Response, next: Nex
  * Get timetable for a specific class section
  * @route GET /api/timetables/class/:sectionId
  */
-export const getClassTimetable = async (req: Request, res: Response, next: NextFunction) => {
+export const getClassTimetable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { sectionId } = req.params;
     const timetable = await prisma.timetable.findFirst({
@@ -122,7 +162,12 @@ export const getClassTimetable = async (req: Request, res: Response, next: NextF
       orderBy: { createdAt: "desc" },
     });
 
-    if (!timetable) return handleError(res, "No timetable found for this class section.", 404);
+    if (!timetable)
+      return handleError(
+        res,
+        "No timetable found for this class section.",
+        404
+      );
 
     res.status(200).json({
       success: true,
@@ -134,79 +179,39 @@ export const getClassTimetable = async (req: Request, res: Response, next: NextF
   }
 };
 
-/**
- * Update a class timetable (including entries)
- * @route PUT /api/timetables/:timetableId
- */
-export const updateTimetable = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { timetableId } = req.params;
-    const { name, status, entries } = req.body;
 
-    const existingTimetable = await prisma.timetable.findUnique({
-      where: { id: timetableId },
-      include: { entries: true },
-    });
-    if (!existingTimetable) return handleError(res, "Timetable not found.", 404);
-
-    const reqToken = (req as any).user;
-    const isAdminAction = await checkIfAdminAction(reqToken, [existingTimetable.schoolId]);
-    if (!isAdminAction) {
-      return handleError(res, "You are not authorized to update this timetable.", 403);
-    }
-
-    const updatedTimetable = await prisma.$transaction(async (tx: PrismaTransactionClient) => {
-      // Delete old entries and recreate
-      await tx.entry.deleteMany({ where: { timetableId } });
-
-      return tx.timetable.update({
-        where: { id: timetableId },
-        data: {
-          name,
-          status,
-          entries: {
-            create: entries.map((e: any) => ({
-              day: e.day,
-              startTime: new Date(e.startTime),
-              endTime: new Date(e.endTime),
-              subjectId: e.subjectId,
-              teacherId: e.teacherId,
-              type: e.type,
-            })),
-          },
-        },
-        include: { entries: true },
-      });
-    });
-
-    logger.info({ timetableId }, "Timetable updated successfully.");
-    res.status(200).json({
-      success: true,
-      message: "Timetable updated successfully.",
-      data: updatedTimetable,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 /**
  * Delete a timetable
  * @route DELETE /api/timetables/:timetableId
  */
-export const deleteTimetable = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteTimetable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { timetableId } = req.params;
 
     const existingTimetable = await prisma.timetable.findUnique({
       where: { id: timetableId },
     });
-    if (!existingTimetable) return handleError(res, "Timetable not found.", 404);
+    if (!existingTimetable)
+      return handleError(res, "Timetable not found.", 404);
 
     const reqToken = (req as any).user;
-    const isAdminAction = await checkIfAdminAction(reqToken, [existingTimetable.schoolId]);
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [existingTimetable.schoolId],
+      [...TEACHER_ROLES]
+    );
+
     if (!isAdminAction) {
-      return handleError(res, "You are not authorized to delete this timetable.", 403);
+      return handleError(
+        res,
+        "You are not authorized to delete this timetable.",
+        403
+      );
     }
 
     await prisma.$transaction(async (tx: PrismaTransactionClient) => {
@@ -218,6 +223,283 @@ export const deleteTimetable = async (req: Request, res: Response, next: NextFun
     res.status(200).json({
       success: true,
       message: "Timetable deleted successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Create a timetable entry
+ * @route POST /api/timetables/entries
+ */
+export const createEntry = async (
+  req: Request<{}, {}, CreateEntryRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { timetableId, day, startTime, endTime, subjectId, teacherId, type } =
+      req.body;
+
+    // Validate timetable exists
+    const timetable = await prisma.timetable.findUnique({
+      where: { id: timetableId },
+    });
+    if (!timetable) return handleError(res, "Timetable not found.", 404);
+
+    // Check authorization
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [timetable.schoolId],
+      [...TEACHER_ROLES]
+    );
+    if (!isAdminAction) {
+      return handleError(
+        res,
+        "You are not authorized to add entries to this timetable.",
+        403
+      );
+    }
+
+    // Validate subject and teacher if provided
+    const [subject, teacher] = await Promise.all([
+      subjectId
+        ? prisma.subject.findUnique({ where: { id: subjectId } })
+        : null,
+      teacherId ? prisma.staff.findUnique({ where: { id: teacherId } }) : null,
+    ]);
+
+    if (subjectId && !subject) return handleError(res, "Invalid subject.", 400);
+    if (teacherId && !teacher) return handleError(res, "Invalid teacher.", 400);
+
+    // Check for time conflicts
+    const existingEntry = await prisma.entry.findFirst({
+      where: {
+        timetableId,
+        day: { equals: day },
+        OR: [
+          {
+            // New entry starts during an existing entry
+            AND: [
+              { startTime: { lte: new Date(startTime) } },
+              { endTime: { gt: new Date(startTime) } },
+            ],
+          },
+          {
+            // New entry ends during an existing entry
+            AND: [
+              { startTime: { lt: new Date(endTime) } },
+              { endTime: { gte: new Date(endTime) } },
+            ],
+          },
+          {
+            // New entry completely contains an existing entry
+            AND: [
+              { startTime: { gte: new Date(startTime) } },
+              { endTime: { lte: new Date(endTime) } },
+            ],
+          },
+        ],
+      },
+    });
+
+    if (existingEntry) {
+      return handleError(
+        res,
+        "Time conflict with an existing entry in the timetable.",
+        400
+      );
+    }
+
+    // Create the entry
+    const entry = await prisma.entry.create({
+      data: {
+        timetableId,
+        day,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        subjectId,
+        teacherId,
+        type: type || "REGULAR",
+      },
+    });
+
+    logger.info({ entryId: entry.id }, "Timetable entry created successfully.");
+    res.status(201).json({
+      success: true,
+      message: "Timetable entry created successfully.",
+      data: entry,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update a timetable entry
+ * @route PUT /api/timetables/entries/:entryId
+ */
+export const updateEntry = async (
+  req: Request<{ entryId: string }, {}, UpdateEntryRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { entryId } = req.params;
+    const { day, startTime, endTime, subjectId, teacherId, type } = req.body;
+
+    // Validate entry exists
+    const existingEntry = await prisma.entry.findUnique({
+      where: { id: entryId },
+      include: { timetable: true },
+    });
+    if (!existingEntry) return handleError(res, "Entry not found.", 404);
+
+    // Check authorization
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [existingEntry.timetable.schoolId],
+      [...TEACHER_ROLES]
+    );
+    if (!isAdminAction) {
+      return handleError(
+        res,
+        "You are not authorized to update this timetable entry.",
+        403
+      );
+    }
+
+    // Validate subject and teacher if provided
+    const [subject, teacher] = await Promise.all([
+      subjectId
+        ? prisma.subject.findUnique({ where: { id: subjectId } })
+        : Promise.resolve(null),
+      teacherId
+        ? prisma.staff.findUnique({ where: { id: teacherId } })
+        : Promise.resolve(null),
+    ]);
+
+    if (subjectId && !subject) return handleError(res, "Invalid subject.", 400);
+    if (teacherId && !teacher) return handleError(res, "Invalid teacher.", 400);
+
+    // Check for time conflicts if time is being updated
+    if (day || startTime || endTime) {
+      const newDay = day || existingEntry.day;
+      const newStartTime = startTime
+        ? new Date(startTime)
+        : existingEntry.startTime;
+      const newEndTime = endTime ? new Date(endTime) : existingEntry.endTime;
+
+      const conflictingEntry = await prisma.entry.findFirst({
+        where: {
+          timetableId: existingEntry.timetableId,
+          day: { equals: newDay },
+          id: { not: entryId },
+          OR: [
+            {
+              // New entry starts during an existing entry
+              AND: [
+                { startTime: { lte: newStartTime } },
+                { endTime: { gt: newStartTime } },
+              ],
+            },
+            {
+              // New entry ends during an existing entry
+              AND: [
+                { startTime: { lt: newEndTime } },
+                { endTime: { gte: newEndTime } },
+              ],
+            },
+            {
+              // New entry completely contains an existing entry
+              AND: [
+                { startTime: { gte: newStartTime } },
+                { endTime: { lte: newEndTime } },
+              ],
+            },
+          ],
+        },
+      });
+
+      if (conflictingEntry) {
+        return handleError(
+          res,
+          "Time conflict with an existing entry in the timetable.",
+          400
+        );
+      }
+    }
+
+    // Update the entry
+    const updatedEntry = await prisma.entry.update({
+      where: { id: entryId },
+      data: {
+        day: day || existingEntry.day,
+        startTime: startTime ? new Date(startTime) : undefined,
+        endTime: endTime ? new Date(endTime) : undefined,
+        subjectId: subjectId || existingEntry.subjectId,
+        teacherId: teacherId || existingEntry.teacherId,
+        type: type || existingEntry.type,
+      },
+    });
+
+    logger.info({ entryId }, "Timetable entry updated successfully.");
+    res.status(200).json({
+      success: true,
+      message: "Timetable entry updated successfully.",
+      data: updatedEntry,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete a timetable entry
+ * @route DELETE /api/timetables/entries/:entryId
+ */
+export const deleteEntry = async (
+  req: Request<{ entryId: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { entryId } = req.params;
+
+    // Validate entry exists
+    const existingEntry = await prisma.entry.findUnique({
+      where: { id: entryId },
+      include: { timetable: true },
+    });
+    if (!existingEntry) return handleError(res, "Entry not found.", 404);
+
+    // Check authorization
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [existingEntry.timetable.schoolId],
+      [...TEACHER_ROLES]
+    );
+    if (!isAdminAction) {
+      return handleError(
+        res,
+        "You are not authorized to delete this timetable entry.",
+        403
+      );
+    }
+
+    // Delete the entry
+    await prisma.entry.delete({
+      where: { id: entryId },
+    });
+
+    logger.info({ entryId }, "Timetable entry deleted successfully.");
+    res.status(200).json({
+      success: true,
+      message: "Timetable entry deleted successfully.",
     });
   } catch (error) {
     next(error);
