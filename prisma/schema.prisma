@@ -54,6 +54,7 @@ model School {
   fromTransfers StudentTransfer[] @relation("FromSchoolRelation")
   toTransfers   StudentTransfer[] @relation("ToSchoolRelation")
   subjects      SubjectSchool[]
+  timetables    Timetable[]
 }
 
 model UserSchool {
@@ -143,6 +144,7 @@ model Staff {
   notes         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  timetables    Entry[]
 
   class_teacher   Class_Section[]
   attendance      Attendance[]
@@ -173,6 +175,7 @@ model Session {
 
   student_enrolled  StudentEnrollment[]
   promotion_history PromotionHistory[]
+  timetables        Timetable[]
 }
 
 model Term {
@@ -187,6 +190,7 @@ model Term {
   updatedAt         DateTime            @updatedAt
   student_enrolled  StudentEnrollment[]
   promotion_history PromotionHistory[]
+  timetables        Timetable[]
 
   @@unique([name, sessionId])
 }
@@ -222,6 +226,7 @@ model Class_Section {
   StudentTransfer  StudentTransfer[]
   subjects         SubjectSection[]
   attendance       Attendance[]
+  timetables       Timetable[]
 
   @@unique([classId, name])
 }
@@ -351,6 +356,7 @@ model Subject {
   teacherId  String?          @db.VarChar(36)
   teacher    Staff?           @relation(fields: [teacherId], references: [id])
   attendance Attendance[]
+  timetables Entry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -412,4 +418,71 @@ model Attendance {
   @@index([year, month, studentId])
   @@index([year, month, staffId])
   @@index([year, month, subjectId])
+}
+
+enum WeekDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum PeriodType {
+  REGULAR
+  BREAK
+  LUNCH
+  ASSEMBLY
+  SPORTS
+  LIBRARY
+  FREE_PERIOD
+}
+
+enum TimetableStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Entry {
+  id           String       @id @default(cuid())
+  timetableId  String
+  day          WeekDay
+  startTime    DateTime
+  endTime      DateTime
+  subjectId    String?
+  teacherId    String?
+  type         PeriodType   @default(REGULAR)
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subject      Subject?     @relation(fields: [subjectId], references: [id])
+  teacher      Staff?       @relation(fields: [teacherId], references: [id])
+  timetable    Timetable    @relation(fields: [timetableId], references: [id])
+
+  @@unique([day, startTime, endTime, timetableId])
+}
+
+model Timetable {
+  id        String          @id @default(cuid())
+  schoolId  String
+  sectionId String
+  sessionId String
+  termId    String?
+  name      String
+  status    TimetableStatus @default(DRAFT)
+  entries   Entry[]
+
+  school    School          @relation(fields: [schoolId], references: [id])
+  session   Session         @relation(fields: [sessionId], references: [id])
+  term      Term?           @relation(fields: [termId], references: [id])
+  section   Class_Section   @relation(fields: [sectionId], references: [id])
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([sectionId, schoolId, sessionId])
+  @@unique([schoolId, sectionId, sessionId, termId])
 }

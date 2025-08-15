@@ -19,7 +19,7 @@ router.use("/class", classRoutes);
 router.use("/students", studentRoutes);
 router.use("/staff", staffRoutes);
 router.use("/notify", notificationRoutes)
-router.use("/subject", verifyToken, subjectRoutes)
+router.use("/subjects", verifyToken, subjectRoutes)
 router.use("/attendance", verifyToken, attendanceRoutes)
 
 
