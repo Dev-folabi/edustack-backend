@@ -473,7 +473,7 @@ model Timetable {
   sessionId String
   termId    String?
   name      String
-  status    TimetableStatus @default(DRAFT)
+  status    TimetableStatus @default(PUBLISHED)
   entries   Entry[]
 
   school  School        @relation(fields: [schoolId], references: [id])

@@ -9,6 +9,8 @@ import notificationRoutes from "./notificationRoutes"
 import subjectRoutes from "./subjectRoutes"
 import { verifyToken } from "../middlewares/authorization";
 import attendanceRoutes from "./attendanceRoutes";
+import timetableRoutes from "./timetableRoutes";
+
 
 const router = express.Router();
 
@@ -21,6 +23,8 @@ router.use("/staff", staffRoutes);
 router.use("/notify", notificationRoutes)
 router.use("/subjects", verifyToken, subjectRoutes)
 router.use("/attendance", verifyToken, attendanceRoutes)
+router.use("/timetables", verifyToken, timetableRoutes)
+
 
 
 export default router;

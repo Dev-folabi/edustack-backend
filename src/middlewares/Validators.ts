@@ -1535,7 +1535,9 @@ export const validateAssignTeacherToSubject = [
 // Validator for section attendance
 export const validateSectionAttendance = [
   body("sectionId").isUUID().withMessage("Invalid section ID"),
-  body("date").isISO8601().withMessage("Invalid date format, must be in YYYY-MM-DD format"),
+  body("date")
+    .isISO8601()
+    .withMessage("Invalid date format, must be in YYYY-MM-DD format"),
   body("records").isArray().withMessage("Records must be an array"),
   body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
   body("records.*.status")
@@ -1549,7 +1551,9 @@ export const validateSectionAttendance = [
 export const validateSubjectAttendance = [
   body("sectionId").isUUID().withMessage("Invalid section ID"),
   body("subjectId").isUUID().withMessage("Invalid subject ID"),
-  body("date").isISO8601().withMessage("Invalid date format, must be in YYYY-MM-DD format"),
+  body("date")
+    .isISO8601()
+    .withMessage("Invalid date format, must be in YYYY-MM-DD format"),
   body("records").isArray().withMessage("Records must be an array"),
   body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
   body("records.*.status")
@@ -1567,7 +1571,10 @@ export const validateStaffAttendance = [
   body("records.*.status")
     .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
     .withMessage("Invalid attendance status"),
-    body("records.*.note").optional().isString().withMessage("Note must be a string"),
+  body("records.*.note")
+    .optional()
+    .isString()
+    .withMessage("Note must be a string"),
 
   handleValidationErrors,
 ];
@@ -1597,5 +1604,184 @@ export const validateGetStaffAttendance = [
   query("year").optional().isInt({ min: 2000 }).withMessage("Invalid year"),
   query("staffId").optional().isUUID().withMessage("Invalid staff ID"),
 
+  handleValidationErrors,
+];
+
+export const validateCreateTimetable = [
+  body("schoolId")
+    .notEmpty()
+    .withMessage("School ID is required")
+    .isString()
+    .withMessage("School ID must be a string"),
+  body("classId")
+    .notEmpty()
+    .withMessage("Class ID is required")
+    .isString()
+    .withMessage("Class ID must be a string"),
+  body("sectionId")
+    .notEmpty()
+    .withMessage("Section ID is required")
+    .isString()
+    .withMessage("Section ID must be a string"),
+  body("sessionId")
+    .notEmpty()
+    .withMessage("Session ID is required")
+    .isString()
+    .withMessage("Session ID must be a string"),
+  body("termId").optional().isString().withMessage("Term ID must be a string"),
+  body("status")
+    .optional()
+    .isString()
+    .withMessage("Status must be a string")
+    .isIn(["DRAFT", "PUBLISHED"])
+    .withMessage("Status must be either DRAFT or PUBLISHED"),
+  body("entries")
+    .isArray()
+    .withMessage("Entries must be an array")
+    .custom((entries) => {
+      if (
+        !entries.every((entry) => entry.day && entry.startTime && entry.endTime)
+      ) {
+        throw new Error(
+          "Each entry must have 'day', 'startTime', and 'endTime'"
+        );
+      }
+      return true;
+    }),
+  handleValidationErrors,
+];
+
+export const validateCreateEntry = [
+  body("timetableId")
+    .notEmpty()
+    .withMessage("Timetable ID is required")
+    .isString()
+    .withMessage("Timetable ID must be a string"),
+  body("day")
+    .notEmpty()
+    .withMessage("Day is required")
+    .isArray()
+    .withMessage("Day must be an array")
+    .custom((value: string[]) => {
+      const validDays = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+      if (!value.every((v) => typeof v === "string")) {
+        throw new Error("All days must be strings");
+      }
+      if (!value.every((v) => validDays.includes(v))) {
+        throw new Error(`Days must be one of: ${validDays.join(", ")}`);
+      }
+      return true;
+    }),
+  body("startTime")
+    .notEmpty()
+    .withMessage("Start time is required")
+    .isISO8601()
+    .withMessage("Start time must be a valid ISO 8601 date"),
+  body("endTime")
+    .notEmpty()
+    .withMessage("End time is required")
+    .isISO8601()
+    .withMessage("End time must be a valid ISO 8601 date"),
+  body("subjectId")
+    .optional()
+    .isString()
+    .withMessage("Subject ID must be a string"),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string"),
+  body("type")
+    .optional()
+    .isString()
+    .withMessage("Type must be a string")
+    .isIn([
+      "REGULAR",
+      "BREAK",
+      "LUNCH",
+      "ASSEMBLY",
+      "SPORTS",
+      "LIBRARY",
+      "FREE_PERIOD",
+    ])
+    .withMessage(
+      "Type must be one of: REGULAR, BREAK, LUNCH, ASSEMBLY, SPORTS, LIBRARY, FREE_PERIOD"
+    ),
+  handleValidationErrors,
+];
+
+export const validateUpdateEntry = [
+  param("entryId")
+    .notEmpty()
+    .withMessage("Entry ID is required")
+    .isString()
+    .withMessage("Entry ID must be a string"),
+  body("day")
+    .optional()
+    .isArray()
+    .withMessage("Day must be an array")
+    .custom((value: string[]) => {
+      const validDays = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+      if (!value.every((day) => validDays.includes(day))) {
+        throw new Error(`Days must be one of: ${validDays.join(", ")}`);
+      }
+      return true;
+    }),
+  body("startTime")
+    .optional()
+    .isISO8601()
+    .withMessage("Start time must be a valid ISO 8601 date"),
+  body("endTime")
+    .optional()
+    .isISO8601()
+    .withMessage("End time must be a valid ISO 8601 date"),
+  body("subjectId")
+    .optional()
+    .isString()
+    .withMessage("Subject ID must be a string"),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string"),
+  body("type")
+    .optional()
+    .isString()
+    .withMessage("Type must be a string")
+    .isIn([
+      "REGULAR",
+      "BREAK",
+      "LUNCH",
+      "ASSEMBLY",
+      "SPORTS",
+      "LIBRARY",
+      "FREE_PERIOD",
+    ])
+    .withMessage(
+      "Type must be one of: REGULAR, BREAK, LUNCH, ASSEMBLY, SPORTS, LIBRARY, FREE_PERIOD"
+    ),
+  handleValidationErrors,
+];
+
+export const validateDeleteEntry = [
+  param("entryId")
+    .notEmpty()
+    .withMessage("Entry ID is required")
+    .isString()
+    .withMessage("Entry ID must be a string"),
   handleValidationErrors,
 ];
