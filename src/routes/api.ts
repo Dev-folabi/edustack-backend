@@ -10,6 +10,13 @@ import subjectRoutes from "./subjectRoutes"
 import { verifyToken } from "../middlewares/authorization";
 import attendanceRoutes from "./attendanceRoutes";
 import timetableRoutes from "./timetableRoutes";
+import examSettingsRoutes from "./examRoutes";
+import examManagementRoutes from "./examRoutes/management";
+import questionBankRoutes from "./examRoutes/questionBank";
+import cbtRoutes from "./cbtRoutes";
+import resultsRoutes from "./resultsRoutes";
+import psychomotorRoutes from "./psychomotorRoutes";
+import reportRoutes from "./reportRoutes";
 
 
 const router = express.Router();
@@ -24,6 +31,13 @@ router.use("/notify", notificationRoutes)
 router.use("/subjects", verifyToken, subjectRoutes)
 router.use("/attendance", verifyToken, attendanceRoutes)
 router.use("/timetables", verifyToken, timetableRoutes)
+router.use("/exam/settings", examSettingsRoutes)
+router.use("/exams", examManagementRoutes)
+router.use("/question-banks", questionBankRoutes)
+router.use("/cbt", cbtRoutes)
+router.use("/results", resultsRoutes)
+router.use("/psychomotor", psychomotorRoutes)
+router.use("/reports", reportRoutes)
 
 
 

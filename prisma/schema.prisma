@@ -41,20 +41,23 @@ enum UserRole {
 }
 
 model School {
-  id            String            @id @default(cuid())
-  name          String            @unique
-  email         String
-  phone         String[]
-  address       String
-  userSchools   UserSchool[]
-  classes       Classes[]
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  fromTransfers StudentTransfer[] @relation("FromSchoolRelation")
-  toTransfers   StudentTransfer[] @relation("ToSchoolRelation")
-  subjects      SubjectSchool[]
-  timetables    Timetable[]
+  id                 String              @id @default(cuid())
+  name               String              @unique
+  email              String
+  phone              String[]
+  address            String
+  userSchools        UserSchool[]
+  classes            Classes[]
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  fromTransfers      StudentTransfer[]   @relation("FromSchoolRelation")
+  toTransfers        StudentTransfer[]   @relation("ToSchoolRelation")
+  subjects           SubjectSchool[]
+  timetables         Timetable[]
+  GlobalExamSettings GlobalExamSettings?
+  GradeCriteria      GradeCriteria[]
+  PsychomotorSkill   PsychomotorSkill[]
 }
 
 model UserSchool {
@@ -119,10 +122,13 @@ model Student {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  student_enrolled  StudentEnrollment[]
-  promotion_history PromotionHistory[]
-  student_transfer  StudentTransfer[]
-  attendance        Attendance[]
+  student_enrolled             StudentEnrollment[]
+  promotion_history            PromotionHistory[]
+  student_transfer             StudentTransfer[]
+  attendance                   Attendance[]
+  StudentPsychomotorAssessment StudentPsychomotorAssessment[]
+  ExamAttempt                  ExamAttempt[]
+  Result                       Result[]
 }
 
 model Staff {
@@ -146,9 +152,13 @@ model Staff {
   updatedAt     DateTime  @updatedAt
   timetables    Entry[]
 
-  class_teacher   Class_Section[]
-  attendance      Attendance[]
-  TeacherSubjects Subject[]
+  class_teacher                Class_Section[]
+  attendance                   Attendance[]
+  TeacherSubjects              Subject[]
+  StudentPsychomotorAssessment StudentPsychomotorAssessment[]
+  Exam                         Exam[]
+  QuestionBank                 QuestionBank[]
+  Question                     Question[]
 }
 
 model Parent {
@@ -173,24 +183,30 @@ model Session {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  student_enrolled  StudentEnrollment[]
-  promotion_history PromotionHistory[]
-  timetables        Timetable[]
+  student_enrolled             StudentEnrollment[]
+  promotion_history            PromotionHistory[]
+  timetables                   Timetable[]
+  StudentPsychomotorAssessment StudentPsychomotorAssessment[]
+  Exam                         Exam[]
+  ExamTimetable                ExamTimetable[]
 }
 
 model Term {
-  id                String              @id @default(cuid())
-  name              String
-  sessionId         String
-  session           Session             @relation(fields: [sessionId], references: [id])
-  start_date        DateTime
-  end_date          DateTime
-  isActive          Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  student_enrolled  StudentEnrollment[]
-  promotion_history PromotionHistory[]
-  timetables        Timetable[]
+  id                           String                         @id @default(cuid())
+  name                         String
+  sessionId                    String
+  session                      Session                        @relation(fields: [sessionId], references: [id])
+  start_date                   DateTime
+  end_date                     DateTime
+  isActive                     Boolean                        @default(false)
+  createdAt                    DateTime                       @default(now())
+  updatedAt                    DateTime                       @updatedAt
+  student_enrolled             StudentEnrollment[]
+  promotion_history            PromotionHistory[]
+  timetables                   Timetable[]
+  StudentPsychomotorAssessment StudentPsychomotorAssessment[]
+  Exam                         Exam[]
+  ExamTimetable                ExamTimetable[]
 
   @@unique([name, sessionId])
 }
@@ -208,6 +224,8 @@ model Classes {
   sections                     Class_Section[]
   schools                      School              @relation(fields: [schoolId], references: [id])
   StudentTransfer              StudentTransfer[]
+  Exam                         Exam[]
+  ExamTimetable                ExamTimetable[]
 
   @@unique([name, schoolId])
 }
@@ -227,6 +245,8 @@ model Class_Section {
   subjects         SubjectSection[]
   attendance       Attendance[]
   timetables       Timetable[]
+  Exam             Exam[]
+  ExamTimetable    ExamTimetable[]
 
   @@unique([classId, name])
 }
@@ -238,9 +258,11 @@ model StudentEnrollment {
   sectionId String
   sessionId String
   termId    String?
-  status    EnrollStatus
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  status             EnrollStatus
+  classTeacherRemark String?
+  schoolHeadRemark   String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   // Relations
   student Student       @relation(fields: [studentId], references: [id])
@@ -358,8 +380,10 @@ model Subject {
   attendance Attendance[]
   timetables Entry[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  ExamPaper    ExamPaper[]
+  QuestionBank QuestionBank[]
 
   @@unique([name, code])
   @@index([teacherId])
@@ -486,4 +510,238 @@ model Timetable {
 
   @@unique([schoolId, sectionId, sessionId, termId])
   @@index([sectionId, schoolId, sessionId])
+}
+
+// EXAM MANAGEMENT SYSTEM
+
+enum ExamStatus {
+  Draft
+  Scheduled
+  Ongoing
+  Completed
+  Cancelled
+}
+
+enum ExamMode {
+  PaperBased
+  CBT
+}
+
+enum QuestionType {
+  MCQ
+  Essay
+  FillInBlanks
+  TrueFalse
+  Matching
+}
+
+enum DifficultyLevel {
+  Easy
+  Medium
+  Hard
+}
+
+enum AttemptStatus {
+  NotStarted
+  InProgress
+  Submitted
+  Graded
+}
+
+model GlobalExamSettings {
+  id                 String   @id @default(cuid())
+  schoolId           String   @unique
+  school             School   @relation(fields: [schoolId], references: [id])
+  enablePsychomotor  Boolean  @default(false)
+  showSchoolRemarks  Boolean  @default(true)
+  showTeacherRemarks Boolean  @default(true)
+  passMark           Float    @default(40)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model GradeCriteria {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String
+  minScore  Float
+  maxScore  Float
+  remark    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, name])
+}
+
+model PsychomotorSkill {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assessments StudentPsychomotorAssessment[]
+
+  @@unique([schoolId, name])
+}
+
+model StudentPsychomotorAssessment {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id])
+  skillId      String
+  skill        PsychomotorSkill @relation(fields: [skillId], references: [id])
+  termId       String
+  term         Term             @relation(fields: [termId], references: [id])
+  sessionId    String
+  session      Session          @relation(fields: [sessionId], references: [id])
+  rating       Int
+  assessedById String
+  assessedBy   Staff            @relation(fields: [assessedById], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([studentId, skillId, termId, sessionId])
+}
+
+model Exam {
+  id          String         @id @default(cuid())
+  title       String
+  startDate   DateTime
+  endDate     DateTime
+  classId     String
+  class       Classes        @relation(fields: [classId], references: [id])
+  sectionId   String?
+  section     Class_Section? @relation(fields: [sectionId], references: [id])
+  termId      String
+  term        Term           @relation(fields: [termId], references: [id])
+  sessionId   String
+  session     Session        @relation(fields: [sessionId], references: [id])
+  status      ExamStatus     @default(Draft)
+  createdById String
+  createdBy   Staff          @relation(fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  papers      ExamPaper[]
+}
+
+model ExamPaper {
+  id             String          @id @default(cuid())
+  examId         String
+  exam           Exam            @relation(fields: [examId], references: [id])
+  subjectId      String
+  subject        Subject         @relation(fields: [subjectId], references: [id])
+  maxMarks       Float
+  paperDate      DateTime
+  startTime      DateTime
+  endTime        DateTime
+  mode           ExamMode
+  questionBankId String?
+  questionBank   QuestionBank?   @relation(fields: [questionBankId], references: [id])
+  totalQuestions Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  attempts       ExamAttempt[]
+  results        Result[]
+  examTimetables ExamTimetable[]
+}
+
+model QuestionBank {
+  id          String      @id @default(cuid())
+  subjectId   String
+  subject     Subject     @relation(fields: [subjectId], references: [id])
+  name        String
+  description String?
+  createdById String
+  createdBy   Staff       @relation(fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  questions   Question[]
+  examPapers  ExamPaper[]
+
+  @@unique([subjectId, name])
+}
+
+model Question {
+  id            String          @id @default(cuid())
+  bankId        String
+  bank          QuestionBank    @relation(fields: [bankId], references: [id])
+  type          QuestionType
+  questionText  String
+  options       Json?
+  correctAnswer Json
+  marks         Float
+  difficulty    DifficultyLevel
+  createdById   String
+  createdBy     Staff           @relation(fields: [createdById], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  responses     ExamResponse[]
+}
+
+model ExamAttempt {
+  id          String         @id @default(cuid())
+  examPaperId String
+  examPaper   ExamPaper      @relation(fields: [examPaperId], references: [id])
+  studentId   String
+  student     Student        @relation(fields: [studentId], references: [id])
+  startedAt   DateTime
+  submittedAt DateTime?
+  status      AttemptStatus  @default(NotStarted)
+  totalScore  Float?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  responses   ExamResponse[]
+
+  @@unique([examPaperId, studentId])
+}
+
+model ExamResponse {
+  id            String      @id @default(cuid())
+  attemptId     String
+  attempt       ExamAttempt @relation(fields: [attemptId], references: [id])
+  questionId    String
+  question      Question    @relation(fields: [questionId], references: [id])
+  studentAnswer Json
+  isCorrect     Boolean?
+  marksAwarded  Float?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([attemptId, questionId])
+}
+
+model Result {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  examPaperId   String
+  examPaper     ExamPaper @relation(fields: [examPaperId], references: [id])
+  marksObtained Float
+  teacherRemark String?
+  isPublished   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([studentId, examPaperId])
+}
+
+model ExamTimetable {
+  id          String          @id @default(cuid())
+  examPaperId String          @unique
+  examPaper   ExamPaper       @relation(fields: [examPaperId], references: [id])
+  classId     String
+  class       Classes         @relation(fields: [classId], references: [id])
+  sectionId   String?
+  section     Class_Section?  @relation(fields: [sectionId], references: [id])
+  termId      String
+  term        Term            @relation(fields: [termId], references: [id])
+  sessionId   String
+  session     Session         @relation(fields: [sessionId], references: [id])
+  status      TimetableStatus @default(DRAFT)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
