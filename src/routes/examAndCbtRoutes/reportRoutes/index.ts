@@ -1,6 +1,6 @@
 import express from "express";
-import { verifyToken } from "../../middlewares/authorization";
-import { generateStudentTermReport } from "../../controllers/reportController";
+import { verifyToken } from "../../../middlewares/authorization";
+import { generateStudentTermReport } from "../../../controllers/examAndCBT/reportController";
 
 const router = express.Router();
 

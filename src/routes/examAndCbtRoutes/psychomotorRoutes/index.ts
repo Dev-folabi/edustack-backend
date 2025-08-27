@@ -1,7 +1,10 @@
 import express from "express";
-import { verifyToken, roleAuthorization } from "../../middlewares/authorization";
-import { savePsychomotorAssessments } from "../../controllers/psychomotorController";
-import { TEACHER_ROLES } from "../../config/constants";
+import { TEACHER_ROLES } from "../../../config/constants";
+import {
+  roleAuthorization,
+  verifyToken,
+} from "../../../middlewares/authorization";
+import { savePsychomotorAssessments } from "../../../controllers/examAndCBT/psychomotorController";
 
 const router = express.Router();
 

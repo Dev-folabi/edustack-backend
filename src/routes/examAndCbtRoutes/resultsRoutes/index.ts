@@ -1,14 +1,17 @@
 import express from "express";
-import { verifyToken, roleAuthorization } from "../../middlewares/authorization";
 import {
-    addManualMarks,
-    getEssayResponsesForGrading,
-    gradeEssayResponse,
-    finalizeCbtResults,
-    publishResults,
-    addTermRemarks
-} from "../../controllers/resultsController";
-import { TEACHER_ROLES } from "../../config/constants";
+  verifyToken,
+  roleAuthorization,
+} from "../../../middlewares/authorization";
+import {
+  addManualMarks,
+  getEssayResponsesForGrading,
+  gradeEssayResponse,
+  finalizeCbtResults,
+  publishResults,
+  addTermRemarks,
+} from "../../../controllers/examAndCBT/resultsController";
+import { TEACHER_ROLES } from "../../../config/constants";
 
 const router = express.Router();
 

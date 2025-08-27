@@ -1,16 +1,19 @@
 import express from "express";
-import { verifyToken, roleAuthorization } from "../../middlewares/authorization";
 import {
-    createQuestionBank,
-    getQuestionBanks,
-    getQuestionBankById,
-    updateQuestionBank,
-    deleteQuestionBank,
-    addQuestionToBank,
-    updateQuestion,
-    deleteQuestion
-} from "../../controllers/questionBankController";
-import { TEACHER_ROLES } from "../../config/constants";
+  verifyToken,
+  roleAuthorization,
+} from "../../../middlewares/authorization";
+import {
+  createQuestionBank,
+  getQuestionBanks,
+  getQuestionBankById,
+  updateQuestionBank,
+  deleteQuestionBank,
+  addQuestionToBank,
+  updateQuestion,
+  deleteQuestion,
+} from "../../../controllers/examAndCBT/questionBankController";
+import { TEACHER_ROLES } from "../../../config/constants";
 
 const router = express.Router();
 

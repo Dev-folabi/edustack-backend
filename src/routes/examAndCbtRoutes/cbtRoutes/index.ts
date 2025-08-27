@@ -1,7 +1,14 @@
 import express from "express";
-import { verifyToken, roleAuthorization } from "../../middlewares/authorization";
-import { startExamAttempt, saveExamResponse, submitExamAttempt } from "../../controllers/cbtController";
-import { STUDENT_ROLES } from "../../config/constants";
+import {
+  verifyToken,
+  roleAuthorization,
+} from "../../../middlewares/authorization";
+import {
+  startExamAttempt,
+  saveExamResponse,
+  submitExamAttempt,
+} from "../../../controllers/examAndCBT/cbtController";
+import { STUDENT_ROLES } from "../../../config/constants";
 
 const router = express.Router();
 
