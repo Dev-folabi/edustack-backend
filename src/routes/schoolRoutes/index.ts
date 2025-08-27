@@ -13,7 +13,8 @@ import {
   validateGetSchool,
   validateUpdateSchool,
 } from "../../middlewares/Validators";
-import { roleAuthorization, verifyToken } from "../../middlewares/authorization"; // Added verifyToken
+import { roleAuthorization, verifyToken } from "../../middlewares/authorization";
+import { SUPER_ADMIN_ROLES } from "../../config/constants";
 
 const router = express.Router();
 
@@ -21,7 +22,8 @@ const router = express.Router();
 router.post(
   "/",
   verifyToken,
-  roleAuthorization(["admin"]),
+  roleAuthorization([...SUPER_ADMIN_ROLES]),
+
   validateCreateSchool,
   createSchool
 );
@@ -32,8 +34,6 @@ router.get("/", verifyToken, getUserSchools);
 // Get All Schools
 router.get(
   "/all",
-  verifyToken,
-  roleAuthorization(["super_admin"]),
   getAllSchools
 );
 
@@ -44,7 +44,8 @@ router.get("/:id", verifyToken, validateGetSchool, getSchool);
 router.put(
   "/:id",
   verifyToken,
-  roleAuthorization(["admin"]),
+  roleAuthorization([...SUPER_ADMIN_ROLES]),
+
   validateUpdateSchool,
   updateSchool
 );
@@ -53,7 +54,7 @@ router.put(
 router.delete(
   "/:id",
   verifyToken,
-  roleAuthorization(["admin"]),
+  roleAuthorization([...SUPER_ADMIN_ROLES]),
   validateDeleteSchool,
   deleteSchool
 );

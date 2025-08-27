@@ -21,7 +21,7 @@ export const createSessionWithTerms = async (
   next: NextFunction
 ) => {
   try {
-    const { label, start_date, end_date, isActive, terms } = req.body;
+    const { name, start_date, end_date, isActive, terms } = req.body;
 
     // Validate session dates
     if (new Date(start_date) >= new Date(end_date)) {
@@ -44,7 +44,7 @@ export const createSessionWithTerms = async (
       if (new Date(term.start_date) >= new Date(term.end_date)) {
         return handleError(
           res,
-          `Term '${term.label}' has invalid start and end dates: start_date must be earlier than end_date.`,
+          `Term '${term.name}' has invalid start and end dates: start_date must be earlier than end_date.`,
           400
         );
       }
@@ -70,7 +70,7 @@ export const createSessionWithTerms = async (
       // Create the new session.
       const session = await tx.session.create({
         data: {
-          label,
+          name,
           start_date: new Date(start_date),
           end_date: new Date(end_date),
           isActive,
@@ -79,7 +79,7 @@ export const createSessionWithTerms = async (
       logger.info(
         {
           sessionId: session.id,
-          label: session.label,
+          name: session.name,
           isActive: session.isActive,
         },
         "New session created."
@@ -91,7 +91,7 @@ export const createSessionWithTerms = async (
           tx.term.create({
             data: {
               sessionId: session.id,
-              label: `${term.label}`,
+              name: `${term.name}`,
               start_date: new Date(term.start_date),
               end_date: new Date(term.end_date),
               isActive:
@@ -239,7 +239,7 @@ export const getSessionById = async (
 
 /**
  * Updates an existing academic session and its terms.
- * Allows updating session details (label, dates, active status) and upserting terms.
+ * Allows updating session details (name, dates, active status) and upserting terms.
  * If a session is marked active, other active sessions are deactivated.
  * @route PUT /api/session/:id (example route)
  * @param req - Express request object. Param `id` is session ID. Body for updates.
@@ -252,7 +252,7 @@ export const updateSessionWithTerms = async (
   next: NextFunction
 ) => {
   try {
-    const { label, start_date, end_date, isActive, terms } = req.body;
+    const { name, start_date, end_date, isActive, terms } = req.body;
     const sessionId = req.params.id;
 
     // Validate session dates if both are provided for update
@@ -273,7 +273,7 @@ export const updateSessionWithTerms = async (
         ) {
           return handleError(
             res,
-            `Term '${term.label}' has invalid dates: start_date must be earlier than end_date.`,
+            `Term '${term.name}' has invalid dates: start_date must be earlier than end_date.`,
             400
           );
         }
@@ -304,7 +304,7 @@ export const updateSessionWithTerms = async (
       const updatedSession = await tx.session.update({
         where: { id: sessionId },
         data: {
-          label: label !== undefined ? label : existingSession.label,
+          name: name !== undefined ? name : existingSession.name,
           start_date:
             start_date !== undefined
               ? new Date(start_date)
@@ -325,7 +325,7 @@ export const updateSessionWithTerms = async (
           terms.map((term) => {
             const termPayload = {
               sessionId: updatedSession.id,
-              label: term.label,
+              name: term.name,
               start_date: new Date(term.start_date),
               end_date: new Date(term.end_date),
               isActive: term.isActive !== undefined ? term.isActive : false,
@@ -334,7 +334,7 @@ export const updateSessionWithTerms = async (
               where: { id: term.id || "" },
               create: termPayload,
               update: {
-                label: term.label !== undefined ? term.label : undefined,
+                name: term.name !== undefined ? term.name : undefined,
                 start_date:
                   term.start_date !== undefined
                     ? new Date(term.start_date)
@@ -447,8 +447,8 @@ export const deleteSession = async (
  * @param res - Express response object.
  * @param next - Express next middleware function.
  */
-export const getAllTerms = async (
-  req: Request,
+export const getSessionTerms = async (
+  req: Request<{ sessionId: string }>,
   res: Response,
   next: NextFunction
 ) => {
@@ -457,7 +457,8 @@ export const getAllTerms = async (
     const limit = parseInt(req.query?.limit as string, 10) || 10;
 
     const terms = await prisma.term.findMany({
-      orderBy: { start_date: "desc" }, // Order by start date
+      orderBy: { start_date: "desc" },
+      where: { sessionId: req.params.sessionId },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -465,7 +466,7 @@ export const getAllTerms = async (
 
     res.status(200).json({
       success: true,
-      message: "All terms retrieved successfully.",
+      message: "Session terms retrieved successfully.",
       data: paginateResults(terms, page, limit, totalRecords),
     });
   } catch (error: any) {
