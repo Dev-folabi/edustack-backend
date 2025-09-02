@@ -80,7 +80,7 @@ export const verifyToken = async (
     }
 
     // IAT (Issued At) claim is essential for password change validation.
-    const tokenIssuedAt = (decodedToken as any).iat; // Standard claim, should be present
+    const tokenIssuedAt = (decodedToken as any).iat;
     if (!tokenIssuedAt || typeof tokenIssuedAt !== 'number') {
         logger.error({ userId: decodedToken.id, path: req.path }, "Token missing IAT in verifyToken");
         return handleError(res, 401, "Token format unacceptable for timestamp check.");
@@ -93,7 +93,6 @@ export const verifyToken = async (
     });
 
     if (!userProfile) {
-      // This should ideally not happen if the token ID corresponds to an existing user.
       logger.warn({ userId: decodedToken.id, path: req.path }, "User profile not found for token in verifyToken");
       return handleError(res, 401, "User profile not found for token.");
     }
@@ -104,11 +103,11 @@ export const verifyToken = async (
       return handleError(res, 401, "Token invalidated due to password change.");
     }
 
-    (req as any).user = decodedToken.id; // Attach user ID to request for downstream use.
+    (req as any).user = decodedToken.id;
     next();
   } catch (error: any) {
     logger.error({ err: error, path: req.path }, "Error in verifyToken middleware");
-    next(error); // Pass to global error handler.
+    next(error);
   }
 };
 
