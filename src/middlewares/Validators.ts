@@ -2041,3 +2041,25 @@ export const financialReportValidator = [
   query("sectionId").optional().isString().withMessage("Invalid section ID"),
   handleValidationErrors,
 ];
+
+export const onlinePaymentValidator = [
+  body("invoiceId").isString().withMessage("Invalid invoice ID"),
+  body("studentId").isString().withMessage("Invalid student ID"),
+  body("amount")
+    .isFloat({ min: 0.01 })
+    .withMessage("Amount must be greater than 0"),
+  body("paymentMethod")
+    .isIn(["CASH", "BANK_TRANSFER", "CARD", "MOBILE_MONEY", "CHEQUE"])
+    .withMessage("Invalid payment method"),
+  body("transactionRef")
+    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Transaction reference must be between 1 and 100 characters"),
+  handleValidationErrors,
+];
+
+export const verifyPaymentValidator = [
+  param("reference").notEmpty().withMessage("Payment reference is required"),
+  query("schoolId").optional().withMessage("School ID is required"),
+  handleValidationErrors,
+];

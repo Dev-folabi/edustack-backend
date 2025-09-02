@@ -759,7 +759,7 @@ enum InvoiceStatus {
   DRAFT
   SENT
   PAID
-  PARTIALLY_PAID 
+  PARTIALLY_PAID
   OVERDUE
   CANCELLED
 }
@@ -810,25 +810,25 @@ model FeeCategory {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  title         String
-  description   String?
-  totalAmount   Float
-  amountPaid    Float         @default(0)
-  amountDue     Float
-  dueDate       DateTime?
-  status        InvoiceStatus @default(DRAFT)
-  allowPartialPayment Boolean @default(false)
-  schoolId      String
-  school        School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  termId        String?
-  term          Term?         @relation(fields: [termId], references: [id])
-  sessionId     String?
-  session       Session?      @relation(fields: [sessionId], references: [id])
-  createdBy     String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  invoiceNumber       String        @unique
+  title               String
+  description         String?
+  totalAmount         Float
+  amountPaid          Float         @default(0)
+  amountDue           Float
+  dueDate             DateTime?
+  status              InvoiceStatus @default(DRAFT)
+  allowPartialPayment Boolean       @default(false)
+  schoolId            String
+  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  termId              String?
+  term                Term?         @relation(fields: [termId], references: [id])
+  sessionId           String?
+  session             Session?      @relation(fields: [sessionId], references: [id])
+  createdBy           String
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   invoiceItems    InvoiceItem[]
   payments        Payment[]
@@ -859,6 +859,24 @@ model StudentInvoice {
   @@unique([studentId, invoiceId])
 }
 
+model PaymentGateway {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  provider    String // PAYSTACK, FLUTTERWAVE, etc.
+  publicKey   String
+  secretKey   String
+  webhookUrl  String?
+  isActive    Boolean  @default(true)
+  // Add Paystack specific fields
+  merchantId  String?
+  callbackUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([schoolId, provider])
+}
+
 model Payment {
   id              String        @id @default(cuid())
   paymentNumber   String        @unique
@@ -877,20 +895,6 @@ model Payment {
   createdBy       String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-}
-
-model PaymentGateway {
-  id        String   @id @default(cuid())
-  name      String
-  provider  String // paystack, flutterwave, stripe, etc.
-  isActive  Boolean  @default(true)
-  config    Json // API keys, webhook URLs, etc.
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([provider, schoolId])
 }
 
 model PaymentWebhook {

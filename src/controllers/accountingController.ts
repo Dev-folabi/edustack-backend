@@ -1193,7 +1193,10 @@ export const deleteExpense = async (req: Request, res: Response) => {
 // Payment Gateways
 export const createPaymentGateway = async (req: Request, res: Response) => {
   try {
-    const { schoolId, name, provider, config }: CreatePaymentGatewayRequest =
+    const { schoolId,  provider, publicKey,
+        secretKey,
+        webhookUrl,
+        callbackUrl, merchantId, isActive }: CreatePaymentGatewayRequest =
       req.body;
     const { userId } = (req as any).user;
 
@@ -1216,9 +1219,13 @@ export const createPaymentGateway = async (req: Request, res: Response) => {
 
     const gateway = await prisma.paymentGateway.create({
       data: {
-        name,
         provider,
-        config,
+        publicKey,
+        secretKey,
+        webhookUrl,
+        callbackUrl,
+        merchantId,
+        isActive,
         schoolId,
       },
     });
@@ -1247,9 +1254,13 @@ export const getPaymentGateways = async (req: Request, res: Response) => {
       where: { schoolId },
       select: {
         id: true,
-        name: true,
         provider: true,
         isActive: true,
+        merchantId: true,
+        webhookUrl: true,
+        callbackUrl: true,
+        publicKey: true,
+        secretKey: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -1292,8 +1303,12 @@ export const updatePaymentGateway = async (req: Request, res: Response) => {
       data: updateData,
       select: {
         id: true,
-        name: true,
         provider: true,
+         merchantId: true,
+        webhookUrl: true,
+        callbackUrl: true,
+        publicKey: true,
+        secretKey: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,

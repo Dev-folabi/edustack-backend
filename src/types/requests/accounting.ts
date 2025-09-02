@@ -88,9 +88,13 @@ export interface UpdateExpenseRequest {
 
 export interface CreatePaymentGatewayRequest {
   schoolId: string;
-  name: string;
   provider: string;
-  config: Record<string, any>;
+  publicKey: string;
+  secretKey: string;
+  webhookUrl?: string;
+  callbackUrl?: string;
+  merchantId?: string;
+  isActive?: boolean;
 }
 
 export interface UpdatePaymentGatewayRequest {
