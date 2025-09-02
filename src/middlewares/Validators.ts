@@ -7,7 +7,6 @@ import {
   NotificationCategory,
   NotificationType,
 } from "@prisma/client";
-import isBoolean from "validator/lib/isBoolean";
 
 /**
  * Middleware to handle the results of express-validator validations.
@@ -1783,5 +1782,262 @@ export const validateDeleteEntry = [
     .withMessage("Entry ID is required")
     .isString()
     .withMessage("Entry ID must be a string"),
+  handleValidationErrors,
+];
+
+// Fee Category Validators
+export const createFeeCategoryValidator = [
+  body("name")
+    .notEmpty()
+    .withMessage("Fee category name is required")
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Fee category name must be between 2 and 100 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage("Description must not exceed 500 characters"),
+  handleValidationErrors,
+];
+
+export const updateFeeCategoryValidator = [
+  param("id").isString().withMessage("Invalid fee category ID"),
+  body("name")
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Fee category name must be between 2 and 100 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage("Description must not exceed 500 characters"),
+  handleValidationErrors,
+];
+
+export const updateInvoiceValidator = [
+  param("id").isString().withMessage("Invalid invoice ID"),
+  body("title")
+    .optional()
+    .notEmpty()
+    .withMessage("Invoice title cannot be empty")
+    .isLength({ min: 2, max: 200 })
+    .withMessage("Invoice title must be between 2 and 200 characters"),
+  body("description")
+    .optional()
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage("Description must not exceed 1000 characters"),
+  body("dueDate").optional().isISO8601().withMessage("Invalid due date format"),
+  body("status")
+    .optional()
+    .isIn(["DRAFT", "SENT", "PAID", "PARTIALLY_PAID", "OVERDUE", "CANCELLED"])
+    .withMessage("Invalid invoice status"),
+  body("allowPartialPayment")
+    .optional()
+    .isBoolean()
+    .withMessage("allowPartialPayment must be a boolean"),
+  handleValidationErrors,
+];
+
+export const createAndAssignInvoiceValidator = [
+  // Invoice validation
+  body("title")
+    .notEmpty()
+    .withMessage("Invoice title is required")
+    .isLength({ min: 2, max: 200 })
+    .withMessage("Invoice title must be between 2 and 200 characters"),
+  body("description")
+    .optional()
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage("Description must not exceed 1000 characters"),
+  body("dueDate").optional().isISO8601().withMessage("Invalid due date format"),
+  body("allowPartialPayment")
+    .optional()
+    .isBoolean()
+    .withMessage("allowPartialPayment must be a boolean"),
+  body("termId").optional().isString().withMessage("Invalid term ID"),
+  body("sessionId").optional().isString().withMessage("Invalid session ID"),
+  body("schoolId")
+    .notEmpty()
+    .withMessage("School ID is required")
+    .isString()
+    .withMessage("Invalid school ID"),
+  body("items")
+    .isArray({ min: 1 })
+    .withMessage("At least one invoice item is required"),
+  body("items.*.feeCategoryId")
+    .notEmpty()
+    .withMessage("Fee category ID is required for each item")
+    .isString()
+    .withMessage("Invalid fee category ID"),
+  body("items.*.amount")
+    .isFloat({ min: 0.01 })
+    .withMessage("Item amount must be greater than 0"),
+  body("items.*.description")
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage("Item description must not exceed 500 characters"),
+
+  // Assignment validation
+  body("assignmentType")
+    .isIn(["SINGLE_STUDENT", "MULTIPLE_STUDENTS", "CLASS", "SECTION"])
+    .withMessage("Invalid assignment type"),
+  body("studentIds")
+    .if(body("assignmentType").isIn(["SINGLE_STUDENT", "MULTIPLE_STUDENTS"]))
+    .isArray({ min: 1 })
+    .withMessage("Student IDs are required for this assignment type"),
+  body("studentIds.*")
+    .if(body("assignmentType").isIn(["SINGLE_STUDENT", "MULTIPLE_STUDENTS"]))
+    .isString()
+    .withMessage("Invalid student ID"),
+  body("classId")
+    .if(body("assignmentType").equals("CLASS"))
+    .isString()
+    .withMessage("Class ID is required for class assignment"),
+  body("sectionId")
+    .if(body("assignmentType").equals("SECTION"))
+    .isString()
+    .withMessage("Section ID is required for section assignment"),
+
+  handleValidationErrors,
+];
+
+// Payment Validators
+export const createPaymentValidator = [
+  body("invoiceId").isString().withMessage("Invalid invoice ID"),
+  body("studentId").isString().withMessage("Invalid student ID"),
+  body("amount")
+    .isFloat({ min: 0.01 })
+    .withMessage("Amount must be greater than 0"),
+  body("paymentMethod")
+    .isIn(["CASH", "BANK_TRANSFER", "CARD", "MOBILE_MONEY", "CHEQUE"])
+    .withMessage("Invalid payment method"),
+  body("transactionRef")
+    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("Transaction reference must be between 1 and 100 characters"),
+  handleValidationErrors,
+];
+
+// Expense Validators
+export const createExpenseValidator = [
+  body("title")
+    .notEmpty()
+    .withMessage("Expense title is required")
+    .isLength({ min: 2, max: 200 })
+    .withMessage("Expense title must be between 2 and 200 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Description must not exceed 1000 characters"),
+  body("amount")
+    .isFloat({ min: 0.01 })
+    .withMessage("Amount must be greater than 0"),
+  body("category")
+    .isIn([
+      "UTILITIES",
+      "SUPPLIES",
+      "MAINTENANCE",
+      "SALARIES",
+      "TRANSPORT",
+      "MARKETING",
+      "OTHER",
+    ])
+    .withMessage("Invalid expense category"),
+  body("receiptUrl")
+    .optional()
+    .isURL()
+    .withMessage("Receipt URL must be a valid URL"),
+  body("expenseDate")
+    .isISO8601()
+    .withMessage("Expense date must be a valid date"),
+  handleValidationErrors,
+];
+
+export const updateExpenseValidator = [
+  param("id").isString().withMessage("Invalid expense ID"),
+  body("title")
+    .optional()
+    .isLength({ min: 2, max: 200 })
+    .withMessage("Expense title must be between 2 and 200 characters"),
+  body("description")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Description must not exceed 1000 characters"),
+  body("amount")
+    .optional()
+    .isFloat({ min: 0.01 })
+    .withMessage("Amount must be greater than 0"),
+  body("category")
+    .optional()
+    .isIn([
+      "UTILITIES",
+      "SUPPLIES",
+      "MAINTENANCE",
+      "SALARIES",
+      "TRANSPORT",
+      "MARKETING",
+      "OTHER",
+    ])
+    .withMessage("Invalid expense category"),
+  body("receiptUrl")
+    .optional()
+    .isURL()
+    .withMessage("Receipt URL must be a valid URL"),
+  body("expenseDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Expense date must be a valid date"),
+  handleValidationErrors,
+];
+
+// Payment Gateway Validators
+export const createPaymentGatewayValidator = [
+  body("name")
+    .notEmpty()
+    .withMessage("Gateway name is required")
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Gateway name must be between 2 and 100 characters"),
+  body("provider")
+    .notEmpty()
+    .withMessage("Provider is required")
+    .isLength({ min: 2, max: 50 })
+    .withMessage("Provider must be between 2 and 50 characters"),
+  body("config").isObject().withMessage("Config must be an object"),
+  handleValidationErrors,
+];
+
+export const updatePaymentGatewayValidator = [
+  param("id").isString().withMessage("Invalid payment gateway ID"),
+  body("name")
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Gateway name must be between 2 and 100 characters"),
+  body("isActive")
+    .optional()
+    .isBoolean()
+    .withMessage("isActive must be a boolean"),
+  body("config").optional().isObject().withMessage("Config must be an object"),
+  handleValidationErrors,
+];
+
+// Common Validators
+export const idValidator = [
+  param("id").isString().withMessage("Invalid ID"),
+  handleValidationErrors,
+];
+
+export const financialReportValidator = [
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Start date must be a valid date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("End date must be a valid date"),
+  query("termId").optional().isString().withMessage("Invalid term ID"),
+  query("sessionId").optional().isString().withMessage("Invalid session ID"),
+  query("classId").optional().isString().withMessage("Invalid class ID"),
+  query("sectionId").optional().isString().withMessage("Invalid section ID"),
   handleValidationErrors,
 ];
