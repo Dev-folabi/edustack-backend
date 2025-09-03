@@ -58,6 +58,11 @@ model School {
   GlobalExamSettings GlobalExamSettings?
   GradeCriteria      GradeCriteria[]
   PsychomotorSkill   PsychomotorSkill[]
+  feeCategories      FeeCategory[]
+  invoices           Invoice[]
+  payments           Payment[]
+  paymentGateways    PaymentGateway[]
+  expenses           Expense[]
 }
 
 model UserSchool {
@@ -129,6 +134,8 @@ model Student {
   StudentPsychomotorAssessment StudentPsychomotorAssessment[]
   ExamAttempt                  ExamAttempt[]
   Result                       Result[]
+  studentInvoices              StudentInvoice[]
+  payments                     Payment[]
 }
 
 model Staff {
@@ -189,6 +196,7 @@ model Session {
   StudentPsychomotorAssessment StudentPsychomotorAssessment[]
   Exam                         Exam[]
   ExamTimetable                ExamTimetable[]
+  invoices                     Invoice[]
 }
 
 model Term {
@@ -207,6 +215,7 @@ model Term {
   StudentPsychomotorAssessment StudentPsychomotorAssessment[]
   Exam                         Exam[]
   ExamTimetable                ExamTimetable[]
+  invoices                     Invoice[]
 
   @@unique([name, sessionId])
 }
@@ -252,12 +261,12 @@ model Class_Section {
 }
 
 model StudentEnrollment {
-  id        String       @id @default(cuid())
-  studentId String
-  classId   String
-  sectionId String
-  sessionId String
-  termId    String?
+  id                 String       @id @default(cuid())
+  studentId          String
+  classId            String
+  sectionId          String
+  sessionId          String
+  termId             String?
   status             EnrollStatus
   classTeacherRemark String?
   schoolHeadRemark   String?
@@ -742,6 +751,174 @@ model ExamTimetable {
   sessionId   String
   session     Session         @relation(fields: [sessionId], references: [id])
   status      TimetableStatus @default(DRAFT)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  MOBILE_MONEY
+  CHEQUE
+}
+
+enum ExpenseCategory {
+  UTILITIES
+  SUPPLIES
+  MAINTENANCE
+  SALARIES
+  TRANSPORT
+  MARKETING
+  OTHER
+}
+
+enum AssignmentType {
+  SINGLE_STUDENT
+  MULTIPLE_STUDENTS
+  CLASS
+  SECTION
+}
+
+model FeeCategory {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  schoolId     String
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  invoiceItems InvoiceItem[]
+
+  @@unique([name, schoolId])
+}
+
+model Invoice {
+  id                  String        @id @default(cuid())
+  invoiceNumber       String        @unique
+  title               String
+  description         String?
+  totalAmount         Float
+  amountPaid          Float         @default(0)
+  amountDue           Float
+  dueDate             DateTime?
+  status              InvoiceStatus @default(DRAFT)
+  allowPartialPayment Boolean       @default(false)
+  schoolId            String
+  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  termId              String?
+  term                Term?         @relation(fields: [termId], references: [id])
+  sessionId           String?
+  session             Session?      @relation(fields: [sessionId], references: [id])
+  createdBy           String
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  invoiceItems    InvoiceItem[]
+  payments        Payment[]
+  studentInvoices StudentInvoice[]
+}
+
+model InvoiceItem {
+  id            String      @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeCategoryId String
+  feeCategory   FeeCategory @relation(fields: [feeCategoryId], references: [id])
+  description   String?
+  amount        Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model StudentInvoice {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedBy String
+
+  @@unique([studentId, invoiceId])
+}
+
+model PaymentGateway {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  provider    String // PAYSTACK, FLUTTERWAVE, etc.
+  publicKey   String
+  secretKey   String
+  webhookUrl  String?
+  isActive    Boolean  @default(true)
+  // Add Paystack specific fields
+  merchantId  String?
+  callbackUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([schoolId, provider])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  paymentNumber   String        @unique
+  invoiceId       String
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+  studentId       String
+  student         Student       @relation(fields: [studentId], references: [id])
+  amount          Float
+  paymentMethod   PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionRef  String?
+  gatewayResponse Json?
+  paidAt          DateTime?
+  schoolId        String
+  school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model PaymentWebhook {
+  id        String   @id @default(cuid())
+  provider  String
+  eventType String
+  payload   Json
+  processed Boolean  @default(false)
+  paymentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  amount      Float
+  category    ExpenseCategory
+  receiptUrl  String?
+  expenseDate DateTime
+  schoolId    String
+  school      School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy   String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 }
