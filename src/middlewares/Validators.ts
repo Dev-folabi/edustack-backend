@@ -2113,8 +2113,16 @@ export const validateSystemInitialization = [
     .isLength({ min: 10, max: 500 })
     .withMessage("School address must be between 10 and 500 characters"),
   body("schoolPhone")
-    .isString()
-    .isLength({ min: 10, max: 20 })
-    .withMessage("School phone must be between 10 and 20 characters"),
+    .isArray()
+    .withMessage("School phone must be an array of strings")
+    .custom((value: string[]) => {
+      if (value.length < 1 || value.length > 3) {
+        throw new Error("Minimum of one phone number and maximum of three are allowed");
+      }
+      if (!value.every(v => typeof v === "string" && v.length >= 10 && v.length <= 20)) {
+        throw new Error("All phone numbers must be strings between 10 and 20 characters");
+      }
+      return true;
+    }),
   handleValidationErrors
 ];

@@ -452,6 +452,11 @@ export const initializeSystem = async (
         update: {},
       });
 
+      await tx.systemSettings.update({
+        where: { id: settings.id },
+        data: { isOnboarded: true },
+      });
+
       return { settings, superAdmin, school };
     });
     logger.info(
