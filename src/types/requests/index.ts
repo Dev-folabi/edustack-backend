@@ -8,6 +8,17 @@ enum Gender {
   others = "others",
 }
 
+// Initialize System Request
+export interface IInitializeSystemRequest {
+  superAdminUsername: string;
+  superAdminEmail: string;
+  superAdminPassword: string;
+  schoolName: string;
+  schoolEmail: string;
+  schoolAddress: string;
+  schoolPhone: string[];
+}
+
 // School Request
 export interface ISchoolRequest {
   name: string;

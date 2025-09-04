@@ -159,38 +159,6 @@ export const validateDeleteSchool = [
   handleValidationErrors,
 ];
 
-// Validation rules for Super Admin Signup.
-export const validateSuperAdminSignUp = [
-  body("email")
-    .notEmpty()
-    .withMessage("Email is required")
-    .isEmail()
-    .withMessage("Valid email is required")
-    .isLength({ max: 254 })
-    .withMessage("Email max length is 254"),
-  body("password")
-    .notEmpty()
-    .withMessage("Password is required")
-    .isLength({ min: 6, max: 128 })
-    .withMessage("Password must be between 6 and 128 characters long"),
-  body("username")
-    .notEmpty()
-    .withMessage("Username is required")
-    .isString()
-    .withMessage("Username must be string")
-    .isLength({ max: 50 })
-    .withMessage("Username max length is 50"),
-  body("name")
-    .notEmpty()
-    .withMessage("Name is required")
-    .isString()
-    .withMessage("Name must be string")
-    .isLength({ max: 100 })
-    .withMessage("Name max length is 100"),
-
-  handleValidationErrors,
-];
-
 // Validation rules for Staff Signup.
 export const validateStaffSignUp = [
   body("email")
@@ -2060,6 +2028,93 @@ export const onlinePaymentValidator = [
 
 export const verifyPaymentValidator = [
   param("reference").notEmpty().withMessage("Payment reference is required"),
-  query("schoolId").optional().withMessage("School ID is required"),
+  query("schoolId").optional().isString().withMessage("School ID must be a valid string"),
   handleValidationErrors,
+];
+
+// Validation for system settings update
+export const validateSystemSettings = [
+  body("appName")
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("App name must be between 1 and 100 characters"),
+  body("appDescription")
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage("App description must not exceed 500 characters"),
+  body("allowRegistration")
+    .optional()
+    .isBoolean()
+    .withMessage("Allow registration must be a boolean"),
+  body("requireEmailVerification")
+    .optional()
+    .isBoolean()
+    .withMessage("Require email verification must be a boolean"),
+  body("sessionTimeout")
+    .optional()
+    .isInt({ min: 300, max: 86400 })
+    .withMessage("Session timeout must be between 300 and 86400 seconds"),
+  body("maxLoginAttempts")
+    .optional()
+    .isInt({ min: 3, max: 10 })
+    .withMessage("Max login attempts must be between 3 and 10"),
+  body("passwordMinLength")
+    .optional()
+    .isInt({ min: 6, max: 50 })
+    .withMessage("Password minimum length must be between 6 and 50"),
+  body("maxFileSize")
+    .optional()
+    .isInt({ min: 1048576, max: 104857600 })
+    .withMessage("Max file size must be between 1MB and 100MB"),
+  body("allowedFileTypes")
+    .optional()
+    .isArray()
+    .withMessage("Allowed file types must be an array"),
+  body("enableEmailNotifications")
+    .optional()
+    .isBoolean()
+    .withMessage("Enable email notifications must be a boolean"),
+  body("enableSmsNotifications")
+    .optional()
+    .isBoolean()
+    .withMessage("Enable SMS notifications must be a boolean"),
+  body("enablePushNotifications")
+    .optional()
+    .isBoolean()
+    .withMessage("Enable push notifications must be a boolean"),
+  handleValidationErrors
+];
+
+
+// Validation for system initialization
+export const validateSystemInitialization = [
+  body("superAdminUsername")
+    .isString()
+    .isLength({ min: 3, max: 50 })
+    .withMessage("Super admin username must be between 3 and 50 characters"),
+  body("superAdminEmail")
+    .isEmail()
+    .withMessage("Super admin email must be valid"),
+  body("superAdminPassword")
+    .isString()
+    .isLength({ min: 8 })
+    .withMessage("Super admin password must be at least 8 characters"),
+  body("schoolName")
+    .isString()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("School name must be between 2 and 100 characters"),
+  body("schoolEmail")
+    .isEmail()
+    .withMessage("School email must be valid"),
+  body("schoolAddress")
+    .isString()
+    .isLength({ min: 10, max: 500 })
+    .withMessage("School address must be between 10 and 500 characters"),
+  body("schoolPhone")
+    .isString()
+    .isLength({ min: 10, max: 20 })
+    .withMessage("School phone must be between 10 and 20 characters"),
+  handleValidationErrors
 ];
