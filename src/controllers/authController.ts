@@ -64,16 +64,15 @@ type PrismaTransactionClient = Omit<
 const getParent = async (
   exist_guardian: boolean,
   guardianData: {
-    guardian_email?: string;
-    guardian_username?: string;
+    guardian_emailOrUsername?: string;
     guardian_password?: string;
   }
 ): Promise<string | null> => {
   if (!exist_guardian) return null;
 
-  const { guardian_email, guardian_username, guardian_password } = guardianData;
+  const { guardian_emailOrUsername, guardian_password } = guardianData;
 
-  if (!guardian_email && !guardian_username) {
+  if (!guardian_emailOrUsername) {
     throw new Error(
       "Guardian email or username is required to find an existing guardian."
     );
@@ -86,14 +85,14 @@ const getParent = async (
 
   let existingUser: any;
 
-  if (guardian_email) {
-    existingUser = await prisma.user.findUnique({
-      where: { email: guardian_email },
-      select: { parent: { select: { id: true } }, password: true },
-    });
-  } else if (guardian_username) {
-    existingUser = await prisma.user.findUnique({
-      where: { username: guardian_username },
+  if (guardian_emailOrUsername) {
+    existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: guardian_emailOrUsername },
+          { username: guardian_emailOrUsername },
+        ]
+      },
       select: { parent: { select: { id: true } }, password: true },
     });
   }
@@ -551,7 +550,7 @@ export const staffSignUp = async (
       address,
       designation,
       dob,
-      salary,
+      salary: Number(salary),
       joining_date,
       gender,
       photo_url,
@@ -607,6 +606,7 @@ export const studentSignUp = async (
       exist_guardian,
       guardian_email,
       guardian_username,
+      guardian_emailOrUsername,
       guardian_password,
       guardian_name,
       guardian_phone,
@@ -643,8 +643,7 @@ export const studentSignUp = async (
     if (exist_guardian) {
       try {
         parentId = await getParent(exist_guardian, {
-          guardian_email,
-          guardian_username,
+          guardian_emailOrUsername,
           guardian_password,
         });
       } catch (error: any) {

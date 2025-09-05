@@ -66,8 +66,9 @@ export interface IStudentRequest extends IUserRequest {
   exist_guardian: boolean;
   guardian_name?: string;
   guardian_phone?: string[];
-  guardian_email: string;
-  guardian_username: string;
+  guardian_emailOrUsername?: string;
+  guardian_email?: string;
+  guardian_username?: string;
   guardian_password: string;
 }
 

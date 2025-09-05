@@ -620,8 +620,16 @@ export const validateStudentSignUp = [
     })
     .bail()
     .optional(),
-
+  body("guardian_emailOrUsername")
+    .if((value, { req }) => req.body.exist_guardian === true)
+    .notEmpty()
+    .withMessage("Guardian email or username is required")
+    .isString()
+    .withMessage("Guardian email or username must be a string")
+    .isLength({ max: 254 })
+    .withMessage("Guardian email or username max length is 254"),
   body("guardian_email")
+    .if((value, { req }) => req.body.exist_guardian === false)
     .notEmpty()
     .withMessage("Guardian email is required")
     .isEmail()
@@ -629,6 +637,7 @@ export const validateStudentSignUp = [
     .isLength({ max: 254 })
     .withMessage("Guardian email max length is 254"),
   body("guardian_username")
+    .if((value, { req }) => req.body.exist_guardian === false)
     .notEmpty()
     .withMessage("Guardian username is required")
     .isString()
@@ -818,14 +827,14 @@ export const validateSignIn = [
 
 // Validation rules for creating a new academic session and its terms.
 export const validateCreateSession = [
-  body("label")
+  body("name")
     .trim()
     .notEmpty()
-    .withMessage("Label is required")
+    .withMessage("name is required")
     .isString()
-    .withMessage("Label must be a string")
+    .withMessage("name must be a string")
     .isLength({ max: 100 })
-    .withMessage("Label max length is 100"),
+    .withMessage("name max length is 100"),
   body("start_date")
     .trim()
     .notEmpty()
@@ -847,29 +856,29 @@ export const validateCreateSession = [
     .withMessage("At least one term must be provided")
     .custom(
       (
-        terms: Array<{ label: string; start_date: string; end_date: string }>
+        terms: Array<{ name: string; start_date: string; end_date: string }>
       ) => {
         terms.forEach((term) => {
           if (
-            !term.label ||
-            typeof term.label !== "string" ||
-            term.label.length === 0 ||
-            term.label.length > 100
+            !term.name ||
+            typeof term.name !== "string" ||
+            term.name.length === 0 ||
+            term.name.length > 100
           )
             throw new Error(
-              "Each term must have a label as a non-empty string with max length 100."
+              "Each term must have a name as a non-empty string with max length 100."
             );
           if (!term.start_date || !validator.isISO8601(term.start_date))
             throw new Error(
-              `Term "${term.label}" start_date must be a valid ISO8601 date.`
+              `Term "${term.name}" start_date must be a valid ISO8601 date.`
             );
           if (!term.end_date || !validator.isISO8601(term.end_date))
             throw new Error(
-              `Term "${term.label}" end_date must be a valid ISO8601 date.`
+              `Term "${term.name}" end_date must be a valid ISO8601 date.`
             );
           if (new Date(term.start_date) >= new Date(term.end_date))
             throw new Error(
-              `Term "${term.label}" has invalid dates: start_date must be earlier than end_date.`
+              `Term "${term.name}" has invalid dates: start_date must be earlier than end_date.`
             );
         });
         return true;
@@ -884,12 +893,12 @@ export const validateUpdateSession = [
     .isString()
     .isLength({ max: 50 })
     .withMessage("Session ID (param) max length 50"),
-  body("label")
+  body("name")
     .optional()
     .isString()
-    .withMessage("Label must be a string")
+    .withMessage("name must be a string")
     .isLength({ max: 100 })
-    .withMessage("Label max length is 100"),
+    .withMessage("name max length is 100"),
   body("start_date")
     .optional()
     .isISO8601()
@@ -910,7 +919,7 @@ export const validateUpdateSession = [
       (
         terms: Array<{
           id?: string;
-          label: string;
+          name: string;
           start_date: string;
           end_date: string;
           isActive?: boolean;
@@ -922,29 +931,29 @@ export const validateUpdateSession = [
               `Term ID "${term.id}" must be a string with max length 50 if provided.`
             );
           if (
-            !term.label ||
-            typeof term.label !== "string" ||
-            term.label.length === 0 ||
-            term.label.length > 100
+            !term.name ||
+            typeof term.name !== "string" ||
+            term.name.length === 0 ||
+            term.name.length > 100
           )
             throw new Error(
-              "Each term must have a label as a non-empty string with max length 100."
+              "Each term must have a name as a non-empty string with max length 100."
             );
           if (!term.start_date || !validator.isISO8601(term.start_date))
             throw new Error(
-              `Term "${term.label}" start_date must be a valid ISO8601 date.`
+              `Term "${term.name}" start_date must be a valid ISO8601 date.`
             );
           if (!term.end_date || !validator.isISO8601(term.end_date))
             throw new Error(
-              `Term "${term.label}" end_date must be a valid ISO8601 date.`
+              `Term "${term.name}" end_date must be a valid ISO8601 date.`
             );
           if (new Date(term.start_date) >= new Date(term.end_date))
             throw new Error(
-              `Term "${term.label}" has invalid dates: start_date must be earlier than end_date.`
+              `Term "${term.name}" has invalid dates: start_date must be earlier than end_date.`
             );
           if (term.isActive !== undefined && typeof term.isActive !== "boolean")
             throw new Error(
-              `Term "${term.label}" isActive must be a boolean if provided.`
+              `Term "${term.name}" isActive must be a boolean if provided.`
             );
         });
         return true;
@@ -981,24 +990,24 @@ export const validateDeleteTerm = [
 
 /**
  * Validation rules for creating a new class.
- * - `label`: Name of the class (e.g., "Grade 10").
- * - `section`: Optional comma-separated string of section labels (e.g., "A,B,C").
+ * - `name`: Name of the class (e.g., "Grade 10").
+ * - `section`: Optional comma-separated string of section names (e.g., "A,B,C").
  * - `schoolId`: Array of school IDs where this class will be created.
  * - `teacherId`: Optional ID of a teacher to be assigned (e.g., as a default class teacher for new sections).
  */
 export const validateCreateClass = [
-  body("label")
+  body("name")
     .notEmpty()
-    .withMessage("Label is required")
+    .withMessage("name is required")
     .isString()
-    .withMessage("Label must be a string")
+    .withMessage("name must be a string")
     .isLength({ max: 100 })
-    .withMessage("Class label max length is 100"),
+    .withMessage("Class name max length is 100"),
   body("section")
     .optional()
     .isString()
     .withMessage(
-      "Section, if provided, must be a string of comma-separated labels."
+      "Section, if provided, must be a string of comma-separated names."
     )
     .trim()
     .isLength({ max: 500 })
@@ -1008,12 +1017,12 @@ export const validateCreateClass = [
       const sections = value.split(",").map((sec) => sec.trim());
       if (!sections.every((sec) => sec.length > 0 && sec.length <= 50)) {
         throw new Error(
-          "Each section label (comma-separated) must be 1-50 characters long."
+          "Each section name (comma-separated) must be 1-50 characters long."
         );
       }
       if (sections.some((sec) => !/^[a-zA-Z0-9\s_.-]+$/.test(sec))) {
         throw new Error(
-          "Section labels can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
+          "Section names can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
         );
       }
       return true;
@@ -1055,17 +1064,17 @@ export const validateUpdateClass = [
     .withMessage("Class ID must be a string")
     .isLength({ max: 50 })
     .withMessage("Class ID max length is 50"),
-  body("label")
+  body("name")
     .optional()
     .isString()
-    .withMessage("Label must be a string")
+    .withMessage("name must be a string")
     .isLength({ max: 100 })
-    .withMessage("Label max length is 100"),
+    .withMessage("name max length is 100"),
   body("section")
     .optional()
     .isString()
     .withMessage(
-      "Section, if provided, must be a string of comma-separated labels."
+      "Section, if provided, must be a string of comma-separated names."
     )
     .trim()
     .isLength({ max: 500 })
@@ -1075,12 +1084,12 @@ export const validateUpdateClass = [
       const sections = value.split(",").map((sec) => sec.trim());
       if (!sections.every((sec) => sec.length > 0 && sec.length <= 50)) {
         throw new Error(
-          "Each section label (comma-separated) must be 1-50 characters long."
+          "Each section name (comma-separated) must be 1-50 characters long."
         );
       }
       if (sections.some((sec) => !/^[a-zA-Z0-9\s_.-]+$/.test(sec))) {
         throw new Error(
-          "Section labels can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
+          "Section names can only contain alphanumeric characters, spaces, underscores, dots, or hyphens."
         );
       }
       return true;
@@ -2028,7 +2037,10 @@ export const onlinePaymentValidator = [
 
 export const verifyPaymentValidator = [
   param("reference").notEmpty().withMessage("Payment reference is required"),
-  query("schoolId").optional().isString().withMessage("School ID must be a valid string"),
+  query("schoolId")
+    .optional()
+    .isString()
+    .withMessage("School ID must be a valid string"),
   handleValidationErrors,
 ];
 
@@ -2084,9 +2096,8 @@ export const validateSystemSettings = [
     .optional()
     .isBoolean()
     .withMessage("Enable push notifications must be a boolean"),
-  handleValidationErrors
+  handleValidationErrors,
 ];
-
 
 // Validation for system initialization
 export const validateSystemInitialization = [
@@ -2105,9 +2116,7 @@ export const validateSystemInitialization = [
     .isString()
     .isLength({ min: 2, max: 100 })
     .withMessage("School name must be between 2 and 100 characters"),
-  body("schoolEmail")
-    .isEmail()
-    .withMessage("School email must be valid"),
+  body("schoolEmail").isEmail().withMessage("School email must be valid"),
   body("schoolAddress")
     .isString()
     .isLength({ min: 10, max: 500 })
@@ -2117,12 +2126,20 @@ export const validateSystemInitialization = [
     .withMessage("School phone must be an array of strings")
     .custom((value: string[]) => {
       if (value.length < 1 || value.length > 3) {
-        throw new Error("Minimum of one phone number and maximum of three are allowed");
+        throw new Error(
+          "Minimum of one phone number and maximum of three are allowed"
+        );
       }
-      if (!value.every(v => typeof v === "string" && v.length >= 10 && v.length <= 20)) {
-        throw new Error("All phone numbers must be strings between 10 and 20 characters");
+      if (
+        !value.every(
+          (v) => typeof v === "string" && v.length >= 10 && v.length <= 20
+        )
+      ) {
+        throw new Error(
+          "All phone numbers must be strings between 10 and 20 characters"
+        );
       }
       return true;
     }),
-  handleValidationErrors
+  handleValidationErrors,
 ];
