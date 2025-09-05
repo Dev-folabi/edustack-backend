@@ -211,7 +211,6 @@ const _dispatchMessages = async (
 
   if (scheduledAt) {
     await prisma.scheduled_Message.createMany({
-      // Not using tx here, as scheduling might be standalone
       data: recipientsToNotify.map((user) => ({
         userId: user.id,
         title,

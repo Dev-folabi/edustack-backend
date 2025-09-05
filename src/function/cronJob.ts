@@ -14,24 +14,19 @@ const updateTermStatuses = async () => {
   let deactivatedCount = 0;
   let activatedCount = 0;
 
-  // Deactivate terms that have ended:
-  // Finds terms that are currently active but their end_date is in the past.
   const deactivatedResult = await prisma.term.updateMany({
     where: {
-      end_date: { lt: currentDate }, // Less than current date
+      end_date: { lt: currentDate },
       isActive: true,
     },
     data: { isActive: false },
   });
   deactivatedCount = deactivatedResult.count;
 
-  // Activate terms that have started and not yet ended:
-  // Finds terms that are currently inactive, their start_date is in the past or present,
-  // and their end_date is in the present or future.
   const activatedResult = await prisma.term.updateMany({
     where: {
-      start_date: { lte: currentDate }, // Less than or equal to current date
-      end_date: { gte: currentDate }, // Greater than or equal to current date
+      start_date: { lte: currentDate },
+      end_date: { gte: currentDate },
       isActive: false,
     },
     data: { isActive: true },
@@ -68,7 +63,7 @@ cron.schedule("0 0 * * *", () => {
  */
 cron.schedule("* * * * *", async () => {
   // Runs "At every minute"
-  logger.info("Running scheduled message processing cron job.");
+  logger.debug("Running scheduled message processing cron job.");
   const batchSize = 50;
   let messagesProcessedInThisRun = 0;
   let moreMessages = true;

@@ -29,7 +29,6 @@ const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRol
     return false;
   }
   try {
-    // Fetches the UserSchool record based on the compound unique key (userId + schoolId).
     const userSchoolLink = await prisma.userSchool.findUnique({
       where: {
         userId_schoolId: {
@@ -39,7 +38,6 @@ const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRol
       },
       select: { role: true }
     });
-    // Check if a link exists and if the user's role in that school is one of the allowed roles.
     return (userSchoolLink?.role && roles.includes(userSchoolLink.role)) || false;
   } catch (error) {
     logger.error({ err: error, userId, schoolId, roles }, "Error in hasAnyRole check");
@@ -82,7 +80,7 @@ export const verifyToken = async (
     }
 
     // IAT (Issued At) claim is essential for password change validation.
-    const tokenIssuedAt = (decodedToken as any).iat; // Standard claim, should be present
+    const tokenIssuedAt = (decodedToken as any).iat;
     if (!tokenIssuedAt || typeof tokenIssuedAt !== 'number') {
         logger.error({ userId: decodedToken.id, path: req.path }, "Token missing IAT in verifyToken");
         return handleError(res, 401, "Token format unacceptable for timestamp check.");
@@ -95,7 +93,6 @@ export const verifyToken = async (
     });
 
     if (!userProfile) {
-      // This should ideally not happen if the token ID corresponds to an existing user.
       logger.warn({ userId: decodedToken.id, path: req.path }, "User profile not found for token in verifyToken");
       return handleError(res, 401, "User profile not found for token.");
     }
@@ -106,11 +103,11 @@ export const verifyToken = async (
       return handleError(res, 401, "Token invalidated due to password change.");
     }
 
-    (req as any).user = decodedToken.id; // Attach user ID to request for downstream use.
+    (req as any).user = decodedToken.id;
     next();
   } catch (error: any) {
     logger.error({ err: error, path: req.path }, "Error in verifyToken middleware");
-    next(error); // Pass to global error handler.
+    next(error);
   }
 };
 
@@ -173,11 +170,9 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
         return next();
       }
 
-      // If roles are specified (i.e., not a generic authenticated route for non-super_admins),
-      // a schoolId context is required for role checking.
+  
       if (roles.length > 0) {
         let schoolId: string | undefined = undefined;
-        // Attempt to extract schoolId from various parts of the request.
         if (req.params && req.params.schoolId) schoolId = req.params.schoolId;
         else if (req.body && req.body.schoolId) schoolId = req.body.schoolId;
         else if (req.query && req.query.schoolId) schoolId = String(req.query.schoolId);
@@ -193,8 +188,6 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
           return handleError(res, 403, "You are not authorized to perform this action in this school.");
         }
       } else {
-        // If roles array is empty, it means no specific roles are defined for this route for non-super_admins.
-        // In this system, this implies only a super_admin should pass, or the route setup is ambiguous.
         logger.warn({ userId, path: req.path }, "Non-super_admin denied access due to empty roles array in roleAuthorization");
         return handleError(res, 403, "You are not authorized to perform this action.");
       }
@@ -223,15 +216,14 @@ export const secureHeaderValidation = async (
   try {
     const secureHeaderKey = process.env.EDUSTACK_SECURE_HEADER_KEY;
     if (
-      !secureHeaderKey || // Secure key not configured on server
-      req.headers["x-header-secure-key"] !== secureHeaderKey // Header missing or key mismatch
+      !secureHeaderKey || 
+      req.headers["x-header-secure-key"] !== secureHeaderKey 
     ) {
       logger.warn({path: req.path, ip: req.ip}, "Secure header validation failed: missing or invalid key.");
       return handleError(res, 400, "Secure header key is missing or invalid");
     }
     next();
   } catch (error: any) {
-    // This catch is unlikely to be hit unless process.env access itself throws, which is rare.
     logger.error({ err: error, path: req.path }, "Unexpected error in secureHeaderValidation");
     handleError(res, 500, "Internal server error during secure header validation.");
   }

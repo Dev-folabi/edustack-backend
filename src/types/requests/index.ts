@@ -1,9 +1,22 @@
+import { PeriodType, TimetableStatus, WeekDay } from "@prisma/client";
+
 type ID = string;
 // Enum for Gender
 enum Gender {
   male = "male",
   female = "female",
   others = "others",
+}
+
+// Initialize System Request
+export interface IInitializeSystemRequest {
+  superAdminUsername: string;
+  superAdminEmail: string;
+  superAdminPassword: string;
+  schoolName: string;
+  schoolEmail: string;
+  schoolAddress: string;
+  schoolPhone: string[];
 }
 
 // School Request
@@ -13,7 +26,7 @@ export interface ISchoolRequest {
   phone: string[];
   address: string;
   isActive: boolean;
-  adminId?: string; 
+  adminId?: string;
 }
 
 // User Request
@@ -24,18 +37,6 @@ export interface IUserRequest {
   password: string;
   isSuperAdmin?: boolean;
 }
-
-// Role Request
-// export interface IRoleRequest {
-//   name: string;
-//   schoolId: ID;
-//   permissionIds?: string[];
-// }
-
-// Permission Request
-// export interface IPermissionRequest {
-//   name: string;
-// }
 
 // Student Request
 export interface IStudentRequest extends IUserRequest {
@@ -65,8 +66,9 @@ export interface IStudentRequest extends IUserRequest {
   exist_guardian: boolean;
   guardian_name?: string;
   guardian_phone?: string[];
-  guardian_email: string;
-  guardian_username: string;
+  guardian_emailOrUsername?: string;
+  guardian_email?: string;
+  guardian_username?: string;
   guardian_password: string;
 }
 
@@ -86,7 +88,7 @@ export interface IStaffRequest extends IUserRequest {
   isActive?: boolean;
   qualification?: string;
   notes?: string;
-  section_id?: string;
+  classSectionId?: string;
 }
 
 // Parent Request
@@ -106,14 +108,14 @@ export interface IUserSchoolRequest {
 
 export interface TermRequest {
   id?: string;
-  label: string;
+  name: string;
   start_date: Date;
   end_date: Date;
   isActive: boolean;
 }
 
 export interface SessionRequest {
-  label: string;
+  name: string;
   start_date: Date;
   end_date: Date;
   isActive: boolean;
@@ -121,10 +123,10 @@ export interface SessionRequest {
 }
 
 export interface classSchoolRequest {
-  label: string;
+  name: string;
   section: string;
   schoolId: string[];
-  teacherId?: string
+  teacherId?: string;
 }
 
 export interface TransferStudentRequest {
@@ -147,6 +149,76 @@ export interface PromoteStudentRequest {
   fromClassId: string;
   toClassId: string;
   sectionId: string;
-  termId?: string;
+  promoteSessionId: string;
+  promoteTermId: string;
   promotedBy: string;
+}
+
+export interface CreateSubjectRequest {
+  name: string;
+  code?: string;
+  isActive?: boolean;
+  teacherId?: string;
+  schoolIds: string[];
+  sectionIds: string[];
+}
+
+export enum AttendanceStatus {
+  PRESENT = "PRESENT",
+  ABSENT = "ABSENT",
+  LATE = "LATE",
+  HOLIDAY = "HOLIDAY",
+  ON_LEAVE = "ON_LEAVE",
+}
+
+export interface StudentAttendanceRequest {
+  date: string;
+  sectionId: string;
+  subjectId?: string;
+  records: {
+    studentId: string;
+    status: AttendanceStatus;
+    notes?: string;
+  }[];
+}
+
+export interface StaffAttendanceRequest {
+  date: string;
+  records: {
+    staffId: string;
+    status: AttendanceStatus;
+    notes?: string;
+  }[];
+}
+
+export interface TimetableEntry {
+  day: WeekDay[];
+  startTime: string;
+  endTime: string;
+  subjectId?: string;
+  teacherId?: string;
+  type: PeriodType;
+}
+
+export interface CreateTimetableRequest {
+  schoolId: string;
+  classId: string;
+  sectionId: string;
+  sessionId: string;
+  termId?: string;
+  status: TimetableStatus;
+  entries: TimetableEntry[];
+}
+
+export interface CreateEntryRequest extends TimetableEntry {
+  timetableId: string;
+}
+
+export interface UpdateEntryRequest {
+  day?: WeekDay[];
+  startTime?: string;
+  endTime?: string;
+  subjectId?: string;
+  teacherId?: string;
+  type?: PeriodType;
 }

@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import bcrypt from "bcrypt";
 import prisma from "../prisma";
 import { handleError } from "../error/errorHandler";
 import {
@@ -27,7 +28,7 @@ export const getStudentsBySchool = async (
     {},
     {},
     {
-      classId?: string;
+      sectionId?: string;
       name?: string;
       admissionNumber?: string;
       active?: string;
@@ -42,7 +43,7 @@ export const getStudentsBySchool = async (
     const page = Math.max(parseInt(req.query?.page as string, 10) || 1, 1);
     const limit = Math.max(parseInt(req.query?.limit as string, 10) || 10, 1);
     const { schoolId } = req.params;
-    const { classId, name, admissionNumber, active } = req.query;
+    const { sectionId, name, admissionNumber, active } = req.query;
 
     if (
       !schoolId ||
@@ -58,9 +59,9 @@ export const getStudentsBySchool = async (
       role: "student",
       user: {
         student: {
-          ...(classId && {
+          ...(sectionId && {
             student_enrolled: {
-              some: { classId, status: "enrolled" },
+              some: { sectionId, status: "enrolled" },
             },
           }),
           ...(name && { name: { contains: name, mode: "insensitive" } }),
@@ -98,7 +99,6 @@ export const getStudentsBySchool = async (
                 gender: true,
                 dob: true,
                 phone: true,
-                email: true,
                 address: true,
                 admission_date: true,
                 religion: true,
@@ -122,8 +122,8 @@ export const getStudentsBySchool = async (
                   orderBy: { createdAt: "desc" },
                   take: 1,
                   select: {
-                    class: { select: { label: true } },
-                    section: { select: { label: true } },
+                    class: { select: { name: true } },
+                    section: { select: { name: true } },
                   },
                 },
               },
@@ -171,8 +171,8 @@ export const getStudentsBySchool = async (
         photoUrl: student?.photo_url,
         schoolId: s.schoolId,
         schoolName: s.school.name,
-        currentClass: enrollment?.class?.label || null,
-        currentSection: enrollment?.section?.label || null,
+        currentClass: enrollment?.class?.name || null,
+        currentSection: enrollment?.section?.name || null,
       };
     });
 
@@ -209,9 +209,9 @@ export const getStudentDetails = async (
           orderBy: { createdAt: "desc" },
           take: 1,
           include: {
-            class: { select: { label: true } },
-            section: { select: { label: true } },
-            session: { select: { label: true } },
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+            session: { select: { name: true } },
           },
         },
       },
@@ -225,9 +225,9 @@ export const getStudentDetails = async (
     const currentEnrollment = student.student_enrolled[0];
     const enrollmentDetails = currentEnrollment
       ? {
-          class: currentEnrollment.class.label,
-          section: currentEnrollment.section.label,
-          session: currentEnrollment.session.label,
+          class: currentEnrollment.class.name,
+          section: currentEnrollment.section.name,
+          session: currentEnrollment.session.name,
         }
       : {};
 
@@ -263,7 +263,9 @@ const _validatePromotionPrerequisites = async (
   fromClassId: string,
   toClassId: string,
   sectionId: string,
-  studentIdsForFirstCheck: string[], // Only used to get the first student for session check
+  promoteSessionId: string,
+  promoteTermId: string,
+  studentIdsForFirstCheck: string[],
   res: Response
 ) => {
   const fromClass = await findClassWithSections(fromClassId, res);
@@ -307,25 +309,34 @@ const _validatePromotionPrerequisites = async (
     };
   }
 
-  const activeSession = await findActiveSession(res);
+  const promoteSession = await prisma.session.findUnique({
+    where: {
+      id: promoteSessionId,
+    },
+    include: {
+      terms: true,
+    },
+  });
 
-  if (!activeSession)
+  if (!promoteSession)
     return {
       success: false,
       error: {
         message:
-          "No active session found for promotion. Please ensure an academic session is active.",
+          "No session found for promotion. Please ensure a session is provided.",
         status: 400,
       },
     };
 
-  const activeTerm = activeSession.terms.find((term) => term.isActive);
-  if (!activeTerm)
+  const promoteTerm = promoteSession.terms.find(
+    (term) => term.id === promoteTermId
+  );
+  if (!promoteTerm)
     return {
       success: false,
       error: {
         message:
-          "No active term found in the session for promotion. Please ensure a term is active.",
+          "No term found for promotion. Please ensure a term is provided.",
         status: 400,
       },
     };
@@ -366,19 +377,19 @@ const _validatePromotionPrerequisites = async (
   if (currentEnrollmentForSessionCheck?.session) {
     const currentSessionStartDateStr =
       currentEnrollmentForSessionCheck.session.start_date?.toISOString();
-    const activeSessionStartDateStr = activeSession.start_date?.toISOString();
+    const promoteSessionStartDateStr = promoteSession.start_date?.toISOString();
 
-    if (currentSessionStartDateStr && activeSessionStartDateStr) {
+    if (currentSessionStartDateStr && promoteSessionStartDateStr) {
       const currentSessionStartDate = new Date(currentSessionStartDateStr);
-      const activeSessionStartDate = new Date(activeSessionStartDateStr);
+      const promoteSessionStartDate = new Date(promoteSessionStartDateStr);
 
       if (
         isNaN(currentSessionStartDate.getTime()) ||
-        isNaN(activeSessionStartDate.getTime())
+        isNaN(promoteSessionStartDate.getTime())
       ) {
         logger.error(
           {
-            activeSessionStart: activeSessionStartDateStr,
+            promoteSessionStartDate: promoteSessionStartDateStr,
             currentStudentSessionStart: currentSessionStartDateStr,
             studentId: firstStudentForCheck.id,
           },
@@ -393,11 +404,11 @@ const _validatePromotionPrerequisites = async (
         };
       }
       if (
-        activeSessionStartDate.getTime() <= currentSessionStartDate.getTime()
+        promoteSessionStartDate.getTime() <= currentSessionStartDate.getTime()
       ) {
         logger.warn(
           {
-            activeSessionStart: activeSession.start_date,
+            promoteSessionStart: promoteSession.start_date,
             currentStudentSessionStart:
               currentEnrollmentForSessionCheck.session.start_date,
             studentId: firstStudentForCheck.id,
@@ -418,7 +429,7 @@ const _validatePromotionPrerequisites = async (
         {
           studentId: firstStudentForCheck.id,
           fromClassId,
-          activeSessionId: activeSession.id,
+          activeSessionId: promoteSession.id,
         },
         "Session start dates missing for promotion validation. Proceeding with caution."
       );
@@ -430,8 +441,8 @@ const _validatePromotionPrerequisites = async (
       fromClass,
       toClass,
       sectionInfo,
-      activeSession,
-      activeTerm,
+      promoteSession,
+      promoteTerm,
       studentsToPromote,
     },
   };
@@ -452,6 +463,8 @@ export const promoteStudent = async (
       fromClassId,
       toClassId,
       sectionId,
+      promoteSessionId,
+      promoteTermId,
     } = req.body;
 
     const promotedByUserId = getIdFromToken(req);
@@ -481,6 +494,8 @@ export const promoteStudent = async (
       fromClassId,
       toClassId,
       sectionId,
+      promoteSessionId,
+      promoteTermId,
       studentIds,
       res
     );
@@ -492,7 +507,7 @@ export const promoteStudent = async (
         prereqResult.error!.status
       );
     }
-    const { activeSession, activeTerm } = prereqResult.data!;
+    const { promoteSession, promoteTerm } = prereqResult.data!;
 
     await prisma.$transaction(async (tx) => {
       await tx.studentEnrollment.updateMany({
@@ -508,8 +523,8 @@ export const promoteStudent = async (
           studentId: id,
           fromClassId,
           toClassId,
-          sessionId: activeSession.id,
-          termId: activeTerm.id,
+          sessionId: promoteSession.id,
+          termId: promoteTerm.id,
           promotedBy: promotedByUserId,
         })),
       });
@@ -518,8 +533,8 @@ export const promoteStudent = async (
           studentId: id,
           classId: toClassId,
           sectionId,
-          sessionId: activeSession.id,
-          termId: activeTerm.id,
+          sessionId: promoteSession.id,
+          termId: promoteTerm.id,
           status: "enrolled",
         })),
       });
@@ -530,7 +545,8 @@ export const promoteStudent = async (
         toClassId,
         sectionId,
         byUser: promotedByUserId,
-        sessionId: activeSession.id,
+        sessionId: promoteSession.id,
+        termId: promoteTerm.id,
       },
       "Students promoted successfully."
     );
@@ -633,7 +649,7 @@ const _validateTransferPrerequisitesAndGetContext = async (
         success: false,
         error: {
           message:
-            "All students in a batch transfer must belong to the same origin school.",
+            "All students must belong to the same origin school.",
           status: 400,
         },
       };
@@ -901,8 +917,8 @@ export const getTransferStudentsBySchool = async (
         student: { select: { name: true, admission_number: true } },
         fromSchool: { select: { name: true } },
         toSchool: { select: { name: true } },
-        class: { select: { label: true } },
-        section: { select: { label: true } },
+        class: { select: { name: true } },
+        section: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -917,6 +933,88 @@ export const getTransferStudentsBySchool = async (
       data: { transfers, total: transfers.length },
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Updates student information
+ * @route PUT /api/students/:studentId
+ */
+export const updateStudent = async (
+  req: Request<{ studentId: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { studentId } = req.params;
+
+    const existingStudent = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: { user: true },
+    });
+
+    if (!existingStudent) {
+      return handleError(res, "Student not found", 404);
+    }
+
+    const { email, password, ...studentData } = req.body;
+
+    const userUpdateData: any = {};
+    const studentUpdateData: any = {};
+
+    Object.assign(userUpdateData, {
+      ...(email !== undefined && { email }),
+      ...(password !== undefined && {
+        password: await bcrypt.hash(password, 10),
+      }),
+    });
+
+    Object.keys(studentData).forEach((key) => {
+      if (studentData[key] !== undefined) {
+        studentUpdateData[key] = studentData[key];
+      }
+    });
+
+    if (studentUpdateData.dob) {
+      studentUpdateData.dob = new Date(studentUpdateData.dob);
+    }
+    if (studentUpdateData.admission_date) {
+      studentUpdateData.admission_date = new Date(
+        studentUpdateData.admission_date
+      );
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (Object.keys(userUpdateData).length > 0) {
+        await tx.user.update({
+          where: { id: existingStudent.userId },
+          data: userUpdateData,
+        });
+      }
+
+      if (Object.keys(studentUpdateData).length > 0) {
+        await tx.student.update({
+          where: { id: studentId },
+          data: studentUpdateData,
+        });
+      }
+
+      return tx.student.findUnique({
+        where: { id: studentId },
+        include: { user: true },
+      });
+    });
+
+    logger.info({ studentId }, "Student updated successfully");
+
+    res.status(200).json({
+      success: true,
+      message: "Student updated successfully",
+      data: _.omit(updated?.user, ["password"]),
+    });
+  } catch (error) {
+    logger.error({ err: error, body: req.body }, "Error updating student");
     next(error);
   }
 };

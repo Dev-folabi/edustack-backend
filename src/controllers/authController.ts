@@ -6,14 +6,20 @@ import {
   IUserRequest,
   IStaffRequest,
   IStudentRequest,
+  IInitializeSystemRequest,
 } from "../types/requests";
 import {
   generateOTP,
   generateToken,
   getDecodedTokenFromRequest,
 } from "../function/token";
-import { PrismaClient, UserRole as PrismaUserRoleEnum } from "@prisma/client";
 import {
+  PrismaClient,
+  UserRole as PrismaUserRoleEnum,
+  UserRole,
+} from "@prisma/client";
+import {
+  checkIfAdminAction,
   findActiveSession,
   validateSchool,
   validateSection,
@@ -58,16 +64,15 @@ type PrismaTransactionClient = Omit<
 const getParent = async (
   exist_guardian: boolean,
   guardianData: {
-    guardian_email?: string;
-    guardian_username?: string;
+    guardian_emailOrUsername?: string;
     guardian_password?: string;
   }
 ): Promise<string | null> => {
   if (!exist_guardian) return null;
 
-  const { guardian_email, guardian_username, guardian_password } = guardianData;
+  const { guardian_emailOrUsername, guardian_password } = guardianData;
 
-  if (!guardian_email && !guardian_username) {
+  if (!guardian_emailOrUsername) {
     throw new Error(
       "Guardian email or username is required to find an existing guardian."
     );
@@ -80,14 +85,14 @@ const getParent = async (
 
   let existingUser: any;
 
-  if (guardian_email) {
-    existingUser = await prisma.user.findUnique({
-      where: { email: guardian_email },
-      select: { parent: { select: { id: true } }, password: true },
-    });
-  } else if (guardian_username) {
-    existingUser = await prisma.user.findUnique({
-      where: { username: guardian_username },
+  if (guardian_emailOrUsername) {
+    existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: guardian_emailOrUsername },
+          { username: guardian_emailOrUsername },
+        ]
+      },
       select: { parent: { select: { id: true } }, password: true },
     });
   }
@@ -168,6 +173,7 @@ const createParentAccount = async (
  */
 const _createStudentAndEnrollment = async (
   tx: PrismaTransactionClient,
+  isAdminAction: boolean,
   userId: string,
   parentId: string,
   studentData: any,
@@ -191,7 +197,7 @@ const _createStudentAndEnrollment = async (
       parentId,
       dob: new Date(dob),
       admission_date: admission_date ? new Date(admission_date) : new Date(),
-      isActive: isActive ?? true,
+      isActive: isAdminAction ? isActive : false,
       ...studentDataWithoutId,
     },
   });
@@ -219,6 +225,7 @@ const _createStudentAndEnrollment = async (
  */
 const _createStudentUserAndDependenciesInTransaction = async (
   tx: PrismaTransactionClient,
+  isAdminAction: boolean,
   data: {
     email: string;
     hashedPassword?: string;
@@ -251,6 +258,7 @@ const _createStudentUserAndDependenciesInTransaction = async (
 
   const student = await _createStudentAndEnrollment(
     tx,
+    isAdminAction,
     user.id,
     parentId,
     studentData,
@@ -267,7 +275,7 @@ const _createStudentUserAndDependenciesInTransaction = async (
  * @param data - Object containing all necessary data for staff creation.
  * @returns The created User object (or just its ID).
  */
-const _createStaffUserAndDependenciesInTransaction = async (
+export const _createStaffUserAndDependenciesInTransaction = async (
   tx: PrismaTransactionClient,
   data: {
     email: string;
@@ -276,10 +284,18 @@ const _createStaffUserAndDependenciesInTransaction = async (
     schoolId: string;
     role: PrismaUserRoleEnum;
     staffProfileData: any;
+    classSectionId?: string;
   }
 ) => {
-  const { email, hashedPassword, username, schoolId, role, staffProfileData } =
-    data;
+  const {
+    email,
+    hashedPassword,
+    username,
+    schoolId,
+    role,
+    staffProfileData,
+    classSectionId,
+  } = data;
 
   const user = await tx.user.create({
     data: { email, password: hashedPassword!, username },
@@ -291,7 +307,7 @@ const _createStaffUserAndDependenciesInTransaction = async (
   });
 
   const { dob, joining_date, ...otherStaffData } = staffProfileData;
-  await tx.staff.create({
+  const staff = await tx.staff.create({
     data: {
       userId: user.id,
       ...otherStaffData,
@@ -299,20 +315,64 @@ const _createStaffUserAndDependenciesInTransaction = async (
       joining_date: joining_date ? new Date(String(joining_date)) : undefined,
     },
   });
+
+  if (classSectionId) {
+    const validateClassSection = await prisma.class_Section.findUnique({
+      where: { id: classSectionId },
+    });
+
+    if (validateClassSection) {
+      await tx.class_Section.update({
+        where: { id: classSectionId },
+        data: { teacherId: staff.id },
+      });
+    }
+  }
+
   return user;
 };
 
 /**
- * Handles Super Admin signup. Only one Super Admin can exist.
- * @route POST /api/auth/admin-signup
+ * Initialize system (first-time setup)
+ * @route POST /api/auth/initialize
  */
-export const superAdminSignUp = async (
-  req: Request<{}, {}, IUserRequest>,
+export const initializeSystem = async (
+  req: Request<{}, {}, IInitializeSystemRequest>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { email, password, username } = req.body;
+    const {
+      superAdminUsername,
+      superAdminEmail,
+      superAdminPassword,
+      schoolName,
+      schoolEmail,
+      schoolAddress,
+      schoolPhone,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !superAdminUsername ||
+      !superAdminEmail ||
+      !superAdminPassword ||
+      !schoolName ||
+      !schoolEmail ||
+      !schoolAddress
+    ) {
+      return handleError(
+        res,
+        "All fields are required for system initialization",
+        400
+      );
+    }
+
+    // Check if system is already initialized
+    const existingSettings = await prisma.systemSettings.findFirst();
+    if (existingSettings?.isOnboarded) {
+      return handleError(res, "System is already initialized", 400);
+    }
 
     const existingSuperAdmin = await prisma.user.findFirst({
       where: { isSuperAdmin: true },
@@ -320,7 +380,7 @@ export const superAdminSignUp = async (
 
     if (existingSuperAdmin) {
       logger.warn(
-        { email, username },
+        { superAdminEmail, superAdminUsername },
         "Attempt to create super admin when one already exists."
       );
       return handleError(
@@ -330,49 +390,98 @@ export const superAdminSignUp = async (
       );
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Start transaction for system initialization
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create/Update system settings
+      const settings = await tx.systemSettings.upsert({
+        where: { id: existingSettings?.id || "" },
+        create: {
+          appName: schoolName || "EduStack",
+          isOnboarded: false,
+        },
+        update: {
+          appName: schoolName || "EduStack",
+        },
+      });
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        username,
-        isSuperAdmin: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        isSuperAdmin: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      // 2. Create super admin user
+      const hashedPassword = await bcrypt.hash(superAdminPassword, 10);
+      const superAdmin = await tx.user.create({
+        data: {
+          username: superAdminUsername,
+          email: superAdminEmail,
+          password: hashedPassword,
+          isSuperAdmin: true,
+        },
+      });
+
+      // 3. Create first school
+      const school = await tx.school.create({
+        data: {
+          name: schoolName,
+          email: schoolEmail,
+          address: schoolAddress,
+          phone: schoolPhone,
+        },
+      });
+
+      // 4. Link super admin to school
+      await tx.userSchool.create({
+        data: {
+          userId: superAdmin.id,
+          schoolId: school.id,
+          role: UserRole.super_admin,
+        },
+      });
+
+      // 5. Update onboarding status
+      await tx.onboardingStatus.upsert({
+        where: { id: "" },
+        create: {
+          step1_superAdmin: true,
+          step2_schoolSetup: true,
+          step3_finalReview: false,
+          currentStep: 3,
+          completionPercentage: 100.0,
+          configData: {
+            superAdminId: superAdmin.id,
+            schoolId: school.id,
+          },
+        },
+        update: {},
+      });
+
+      await tx.systemSettings.update({
+        where: { id: settings.id },
+        data: { isOnboarded: true },
+      });
+
+      return { settings, superAdmin, school };
     });
     logger.info(
-      { userId: user.id, username: user.username },
+      { userId: result.superAdmin.id, username: result.superAdmin.username },
       "Super admin account created, pending OTP verification."
     );
 
     const otp = generateOTP();
     Promise.all([
       setCache(
-        `${REDIS_EMAIL_VERIFICATION_PREFIX}${user.id}`,
+        `${REDIS_EMAIL_VERIFICATION_PREFIX}${result.superAdmin.id}`,
         otp,
         OTP_EXPIRY_SECONDS
       ),
       notifyUser({
-        userId: user.id,
-        email: user.email || "",
+        userId: result.superAdmin.id,
+        email: result.superAdmin.email || "",
         title: "Email Verification OTP",
-        message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}.
+        message: `Dear ${result.superAdmin.username || "Admin"}, your email verification code is ${otp}.
          \nPlease note that this code will expire in ${OTP_EXPIRY_SECONDS / 60} minutes. 
          \nIf you did not request this code, please ignore this email.`,
         channels: ["EMAIL"],
       }),
     ]).catch((otpError) => {
       logger.error(
-        { err: otpError, userId: user.id },
+        { err: otpError, userId: result.superAdmin.id },
         "Failed to set OTP cache or send notification for super admin signup."
       );
     });
@@ -381,7 +490,12 @@ export const superAdminSignUp = async (
       success: true,
       message:
         "Account created successfully. Please check your email for verification code.",
-      data: user,
+      data: {
+        superAdmin: result.superAdmin,
+        systemSettings: result.settings,
+        superAdminCreated: true,
+        schoolCreated: true,
+      },
     });
   } catch (error: any) {
     logger.error({ err: error, body: req.body }, "Error in superAdminSignUp");
@@ -398,6 +512,8 @@ export const staffSignUp = async (
   res: Response,
   next: NextFunction
 ) => {
+  const reqToken = (req as any).user;
+  const isAdminAction = await checkIfAdminAction(reqToken);
   try {
     const {
       username,
@@ -416,6 +532,8 @@ export const staffSignUp = async (
       photo_url,
       qualification,
       notes,
+      isActive,
+      classSectionId,
     } = req.body;
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -432,12 +550,13 @@ export const staffSignUp = async (
       address,
       designation,
       dob,
-      salary,
+      salary: Number(salary),
       joining_date,
       gender,
       photo_url,
       qualification,
       notes,
+      isActive: isAdminAction ? isActive : false,
     };
 
     const newUser = await prisma.$transaction(async (tx) => {
@@ -447,6 +566,7 @@ export const staffSignUp = async (
         username,
         schoolId: school.id,
         role: role as PrismaUserRoleEnum,
+        classSectionId: isAdminAction ? classSectionId : undefined,
         staffProfileData,
       });
     });
@@ -455,12 +575,12 @@ export const staffSignUp = async (
       "Staff account created successfully."
     );
 
-    const token = generateToken({ id: newUser.id });
-
     res.status(201).json({
       success: true,
-      message: "Staff created successfully",
-      data: { userId: newUser.id, token },
+      message: isAdminAction
+        ? "Staff created successfully"
+        : "Staff created successfully, pending admin approval.",
+      data: { userId: newUser.id },
     });
   } catch (error: any) {
     logger.error({ err: error, body: req.body }, "Error in staffSignUp");
@@ -478,11 +598,15 @@ export const studentSignUp = async (
   next: NextFunction
 ) => {
   try {
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(reqToken);
+
     const {
       schoolId,
       exist_guardian,
       guardian_email,
       guardian_username,
+      guardian_emailOrUsername,
       guardian_password,
       guardian_name,
       guardian_phone,
@@ -519,8 +643,7 @@ export const studentSignUp = async (
     if (exist_guardian) {
       try {
         parentId = await getParent(exist_guardian, {
-          guardian_email,
-          guardian_username,
+          guardian_emailOrUsername,
           guardian_password,
         });
       } catch (error: any) {
@@ -573,7 +696,7 @@ export const studentSignUp = async (
         );
       }
 
-      return _createStudentUserAndDependenciesInTransaction(tx, {
+      return _createStudentUserAndDependenciesInTransaction(tx, isAdminAction, {
         email: email!,
         hashedPassword,
         username,
@@ -589,13 +712,14 @@ export const studentSignUp = async (
       "Student account created and enrolled successfully."
     );
 
-    const token = generateToken({ id: result.user.id });
     const responseUserData = _.omit(result.user, ["password"]);
 
     res.status(201).json({
       success: true,
-      message: "Student created successfully",
-      data: { userData: responseUserData, student: result.student, token },
+      message: isAdminAction
+        ? "Student created successfully"
+        : "Student created successfully, pending admin approval.",
+      data: { userData: responseUserData, student: result.student },
     });
   } catch (error) {
     logger.error({ err: error, body: req.body }, "Error in studentSignUp");
@@ -624,6 +748,7 @@ export const userSignIn = async (
         email: true,
         username: true,
         isSuperAdmin: true,
+        hasVerifiedEmail: true,
         userSchools: { select: { schoolId: true, role: true } },
         staff: true,
         student: true,
@@ -639,6 +764,32 @@ export const userSignIn = async (
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return handleError(res, "Invalid credentials. Password incorrect.", 401);
+    }
+
+    if (!user.isSuperAdmin) {
+      if (user.staff && !user.staff.isActive) {
+        return handleError(
+          res,
+          "Your staff account is inactive, please contact school admin.",
+          401
+        );
+      }
+      if (user.student && !user.student.isActive) {
+        return handleError(
+          res,
+          "Your student account is inactive, please contact school admin.",
+          401
+        );
+      }
+    }
+
+    if (!user.hasVerifiedEmail) {
+      return handleError(
+        res,
+        "Your email is not verified, please verify your email first.",
+        401,
+        { userId: user.id }
+      );
     }
 
     const expire =
@@ -744,6 +895,11 @@ export const verifyEmailOTP = async (
 
     if (!user)
       return handleError(res, "User not found after OTP verification.", 404);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { hasVerifiedEmail: true },
+    });
 
     const expire =
       user.userSchools.some(

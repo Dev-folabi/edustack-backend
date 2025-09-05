@@ -2,7 +2,7 @@ import express from "express";
 import {
   staffSignUp,
   studentSignUp,
-  superAdminSignUp,
+  initializeSystem,
   userSignIn,
   verifyEmailOTP,
   resendOTP,
@@ -15,23 +15,18 @@ import {
   validateSignIn,
   validateStaffSignUp,
   validateStudentSignUp,
-  validateSuperAdminSignUp,
   validateResetPassword,
   validateRequestPasswordReset,
   validateResendOTP,
   validateVerifyEmailOTP,
+  validateSystemInitialization,
 } from "../../middlewares/Validators";
 import { verifyToken } from "../../middlewares/authorization"; // Added verifyToken
 
 const router = express.Router();
 
-// Super Admin Signup
-router.post(
-  "/admin-signup",
-  validateSuperAdminSignUp,
-  signUpvalidate,
-  superAdminSignUp
-);
+// Initialize System
+router.post("/initialize", validateSystemInitialization, initializeSystem);
 
 // Verify Email OTP
 router.post("/verify-email-otp", validateVerifyEmailOTP, verifyEmailOTP);
