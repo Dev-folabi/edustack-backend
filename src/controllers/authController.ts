@@ -999,14 +999,12 @@ export const resendOTP = async (
   next: NextFunction
 ) => {
   try {
-    const { id, email, type } = req.body as {
+    const { id, type } = req.body as {
       id?: string;
-      email?: string;
       type: "email_verification" | "password_reset";
     };
-    const identifier = id || email;
 
-    if (!identifier) {
+    if (!id) {
       return handleError(
         res,
         "User identifier (id or email) is required for OTP resend.",
@@ -1016,7 +1014,7 @@ export const resendOTP = async (
 
     const limitCheckResend = await checkRateLimit(
       "otp_resend",
-      identifier,
+      id,
       OTP_RESEND_WINDOW_SECONDS,
       OTP_RESEND_MAX_ATTEMPTS
     );
@@ -1027,14 +1025,14 @@ export const resendOTP = async (
       );
       const message = `Too many OTP resend requests. Try again in ${retryMinutes} minutes.`;
       logger.warn(
-        { identifier, type, attempts: limitCheckResend.attemptsMade },
+        { id, type, attempts: limitCheckResend.attemptsMade },
         "OTP resend rate limit exceeded."
       );
       return handleError(res, message, 429);
     }
 
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ id }, { email }] },
+    const user = await prisma.user.findUnique({
+      where: { id },
       select: { id: true, email: true, username: true },
     });
 
@@ -1058,7 +1056,7 @@ export const resendOTP = async (
       messagePrefix:
         type === "password_reset" ? "Password reset" : "Email verification",
     });
-    logger.info({ identifier, type }, "OTP resent successfully.");
+    logger.info({ id, type }, "OTP resent successfully.");
 
     const token = generateToken({
       id: user.id,

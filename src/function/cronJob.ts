@@ -81,11 +81,10 @@ cron.schedule("* * * * *", async () => {
         { err: dbError },
         "Cron: Failed to fetch scheduled messages from DB."
       );
-      moreMessages = false; // Stop processing this cycle if DB fetch fails.
+      moreMessages = false;
       break;
     }
 
-    // If no messages are found in the current batch, exit the loop for this cron run.
     if (messages.length === 0) {
       moreMessages = false;
       break;
@@ -94,14 +93,13 @@ cron.schedule("* * * * *", async () => {
 
     for (const message of messages) {
       try {
-        // Attempt to send the notification using the utility function.
         await notifyUser({
           userId: message.userId,
-          email: message.email! || "", // Ensure email is not null, or handle if it can be.
+          email: message.email! || "",
           title: message.title,
           message: message.message,
           category: message.category,
-          channels: [message.type], // notifyUser expects an array of NotificationType.
+          channels: [message.type],
         });
 
         // If sending is successful, update the message status to 'SENT'.

@@ -756,15 +756,6 @@ export const validateResendOTP = [
     .withMessage("Id is required for email verification")
     .isLength({ max: 50 })
     .withMessage("ID max length is 50"),
-  body("email")
-    .if(body("type").equals("password_reset"))
-    .trim()
-    .notEmpty()
-    .withMessage("Email is required for password reset")
-    .isEmail()
-    .withMessage("Must be a valid email")
-    .isLength({ max: 254 })
-    .withMessage("Email max length is 254"),
   handleValidationErrors,
 ];
 
