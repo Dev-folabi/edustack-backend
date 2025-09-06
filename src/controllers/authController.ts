@@ -6,13 +6,18 @@ import {
   IUserRequest,
   IStaffRequest,
   IStudentRequest,
+  IInitializeSystemRequest,
 } from "../types/requests";
 import {
   generateOTP,
   generateToken,
   getDecodedTokenFromRequest,
 } from "../function/token";
-import { PrismaClient, UserRole as PrismaUserRoleEnum } from "@prisma/client";
+import {
+  PrismaClient,
+  UserRole as PrismaUserRoleEnum,
+  UserRole,
+} from "@prisma/client";
 import {
   checkIfAdminAction,
   findActiveSession,
@@ -59,16 +64,15 @@ type PrismaTransactionClient = Omit<
 const getParent = async (
   exist_guardian: boolean,
   guardianData: {
-    guardian_email?: string;
-    guardian_username?: string;
+    guardian_emailOrUsername?: string;
     guardian_password?: string;
   }
 ): Promise<string | null> => {
   if (!exist_guardian) return null;
 
-  const { guardian_email, guardian_username, guardian_password } = guardianData;
+  const { guardian_emailOrUsername, guardian_password } = guardianData;
 
-  if (!guardian_email && !guardian_username) {
+  if (!guardian_emailOrUsername) {
     throw new Error(
       "Guardian email or username is required to find an existing guardian."
     );
@@ -81,14 +85,14 @@ const getParent = async (
 
   let existingUser: any;
 
-  if (guardian_email) {
-    existingUser = await prisma.user.findUnique({
-      where: { email: guardian_email },
-      select: { parent: { select: { id: true } }, password: true },
-    });
-  } else if (guardian_username) {
-    existingUser = await prisma.user.findUnique({
-      where: { username: guardian_username },
+  if (guardian_emailOrUsername) {
+    existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: guardian_emailOrUsername },
+          { username: guardian_emailOrUsername },
+        ]
+      },
       select: { parent: { select: { id: true } }, password: true },
     });
   }
@@ -329,16 +333,46 @@ export const _createStaffUserAndDependenciesInTransaction = async (
 };
 
 /**
- * Handles Super Admin signup. Only one Super Admin can exist.
- * @route POST /api/auth/admin-signup
+ * Initialize system (first-time setup)
+ * @route POST /api/auth/initialize
  */
-export const superAdminSignUp = async (
-  req: Request<{}, {}, IUserRequest>,
+export const initializeSystem = async (
+  req: Request<{}, {}, IInitializeSystemRequest>,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { email, password, username } = req.body;
+    const {
+      superAdminUsername,
+      superAdminEmail,
+      superAdminPassword,
+      schoolName,
+      schoolEmail,
+      schoolAddress,
+      schoolPhone,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !superAdminUsername ||
+      !superAdminEmail ||
+      !superAdminPassword ||
+      !schoolName ||
+      !schoolEmail ||
+      !schoolAddress
+    ) {
+      return handleError(
+        res,
+        "All fields are required for system initialization",
+        400
+      );
+    }
+
+    // Check if system is already initialized
+    const existingSettings = await prisma.systemSettings.findFirst();
+    if (existingSettings?.isOnboarded) {
+      return handleError(res, "System is already initialized", 400);
+    }
 
     const existingSuperAdmin = await prisma.user.findFirst({
       where: { isSuperAdmin: true },
@@ -346,7 +380,7 @@ export const superAdminSignUp = async (
 
     if (existingSuperAdmin) {
       logger.warn(
-        { email, username },
+        { superAdminEmail, superAdminUsername },
         "Attempt to create super admin when one already exists."
       );
       return handleError(
@@ -356,49 +390,98 @@ export const superAdminSignUp = async (
       );
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Start transaction for system initialization
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create/Update system settings
+      const settings = await tx.systemSettings.upsert({
+        where: { id: existingSettings?.id || "" },
+        create: {
+          appName: schoolName || "EduStack",
+          isOnboarded: false,
+        },
+        update: {
+          appName: schoolName || "EduStack",
+        },
+      });
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        username,
-        isSuperAdmin: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        isSuperAdmin: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      // 2. Create super admin user
+      const hashedPassword = await bcrypt.hash(superAdminPassword, 10);
+      const superAdmin = await tx.user.create({
+        data: {
+          username: superAdminUsername,
+          email: superAdminEmail,
+          password: hashedPassword,
+          isSuperAdmin: true,
+        },
+      });
+
+      // 3. Create first school
+      const school = await tx.school.create({
+        data: {
+          name: schoolName,
+          email: schoolEmail,
+          address: schoolAddress,
+          phone: schoolPhone,
+        },
+      });
+
+      // 4. Link super admin to school
+      await tx.userSchool.create({
+        data: {
+          userId: superAdmin.id,
+          schoolId: school.id,
+          role: UserRole.super_admin,
+        },
+      });
+
+      // 5. Update onboarding status
+      await tx.onboardingStatus.upsert({
+        where: { id: "" },
+        create: {
+          step1_superAdmin: true,
+          step2_schoolSetup: true,
+          step3_finalReview: false,
+          currentStep: 3,
+          completionPercentage: 100.0,
+          configData: {
+            superAdminId: superAdmin.id,
+            schoolId: school.id,
+          },
+        },
+        update: {},
+      });
+
+      await tx.systemSettings.update({
+        where: { id: settings.id },
+        data: { isOnboarded: true },
+      });
+
+      return { settings, superAdmin, school };
     });
     logger.info(
-      { userId: user.id, username: user.username },
+      { userId: result.superAdmin.id, username: result.superAdmin.username },
       "Super admin account created, pending OTP verification."
     );
 
     const otp = generateOTP();
     Promise.all([
       setCache(
-        `${REDIS_EMAIL_VERIFICATION_PREFIX}${user.id}`,
+        `${REDIS_EMAIL_VERIFICATION_PREFIX}${result.superAdmin.id}`,
         otp,
         OTP_EXPIRY_SECONDS
       ),
       notifyUser({
-        userId: user.id,
-        email: user.email || "",
+        userId: result.superAdmin.id,
+        email: result.superAdmin.email || "",
         title: "Email Verification OTP",
-        message: `Dear ${user.username || "Admin"}, your email verification code is ${otp}.
+        message: `Dear ${result.superAdmin.username || "Admin"}, your email verification code is ${otp}.
          \nPlease note that this code will expire in ${OTP_EXPIRY_SECONDS / 60} minutes. 
          \nIf you did not request this code, please ignore this email.`,
         channels: ["EMAIL"],
       }),
     ]).catch((otpError) => {
       logger.error(
-        { err: otpError, userId: user.id },
+        { err: otpError, userId: result.superAdmin.id },
         "Failed to set OTP cache or send notification for super admin signup."
       );
     });
@@ -407,7 +490,12 @@ export const superAdminSignUp = async (
       success: true,
       message:
         "Account created successfully. Please check your email for verification code.",
-      data: user,
+      data: {
+        superAdmin: result.superAdmin,
+        systemSettings: result.settings,
+        superAdminCreated: true,
+        schoolCreated: true,
+      },
     });
   } catch (error: any) {
     logger.error({ err: error, body: req.body }, "Error in superAdminSignUp");
@@ -462,7 +550,7 @@ export const staffSignUp = async (
       address,
       designation,
       dob,
-      salary,
+      salary: Number(salary),
       joining_date,
       gender,
       photo_url,
@@ -518,6 +606,7 @@ export const studentSignUp = async (
       exist_guardian,
       guardian_email,
       guardian_username,
+      guardian_emailOrUsername,
       guardian_password,
       guardian_name,
       guardian_phone,
@@ -554,8 +643,7 @@ export const studentSignUp = async (
     if (exist_guardian) {
       try {
         parentId = await getParent(exist_guardian, {
-          guardian_email,
-          guardian_username,
+          guardian_emailOrUsername,
           guardian_password,
         });
       } catch (error: any) {
@@ -660,6 +748,7 @@ export const userSignIn = async (
         email: true,
         username: true,
         isSuperAdmin: true,
+        hasVerifiedEmail: true,
         userSchools: { select: { schoolId: true, role: true } },
         staff: true,
         student: true,
@@ -670,6 +759,11 @@ export const userSignIn = async (
 
     if (!user) {
       return handleError(res, "Invalid credentials. User not found.", 404);
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return handleError(res, "Invalid credentials. Password incorrect.", 401);
     }
 
     if (!user.isSuperAdmin) {
@@ -689,9 +783,13 @@ export const userSignIn = async (
       }
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return handleError(res, "Invalid credentials. Password incorrect.", 401);
+    if (!user.hasVerifiedEmail) {
+      return handleError(
+        res,
+        "Your email is not verified, please verify your email first.",
+        401,
+        { userId: user.id }
+      );
     }
 
     const expire =
@@ -798,6 +896,11 @@ export const verifyEmailOTP = async (
     if (!user)
       return handleError(res, "User not found after OTP verification.", 404);
 
+    await prisma.user.update({
+      where: { id: userId },
+      data: { hasVerifiedEmail: true },
+    });
+
     const expire =
       user.userSchools.some(
         (us) => us.role && SENSITIVE_USER_ROLES.includes(us.role)
@@ -896,14 +999,12 @@ export const resendOTP = async (
   next: NextFunction
 ) => {
   try {
-    const { id, email, type } = req.body as {
+    const { id, type } = req.body as {
       id?: string;
-      email?: string;
       type: "email_verification" | "password_reset";
     };
-    const identifier = id || email;
 
-    if (!identifier) {
+    if (!id) {
       return handleError(
         res,
         "User identifier (id or email) is required for OTP resend.",
@@ -913,7 +1014,7 @@ export const resendOTP = async (
 
     const limitCheckResend = await checkRateLimit(
       "otp_resend",
-      identifier,
+      id,
       OTP_RESEND_WINDOW_SECONDS,
       OTP_RESEND_MAX_ATTEMPTS
     );
@@ -924,14 +1025,14 @@ export const resendOTP = async (
       );
       const message = `Too many OTP resend requests. Try again in ${retryMinutes} minutes.`;
       logger.warn(
-        { identifier, type, attempts: limitCheckResend.attemptsMade },
+        { id, type, attempts: limitCheckResend.attemptsMade },
         "OTP resend rate limit exceeded."
       );
       return handleError(res, message, 429);
     }
 
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ id }, { email }] },
+    const user = await prisma.user.findUnique({
+      where: { id },
       select: { id: true, email: true, username: true },
     });
 
@@ -955,7 +1056,7 @@ export const resendOTP = async (
       messagePrefix:
         type === "password_reset" ? "Password reset" : "Email verification",
     });
-    logger.info({ identifier, type }, "OTP resent successfully.");
+    logger.info({ id, type }, "OTP resent successfully.");
 
     const token = generateToken({
       id: user.id,

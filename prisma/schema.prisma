@@ -83,6 +83,7 @@ model User {
   email             String?             @unique
   username          String              @unique
   password          String
+  hasVerifiedEmail  Boolean             @default(false)
   userSchools       UserSchool[]
   student           Student?
   staff             Staff?
@@ -921,4 +922,91 @@ model Expense {
   createdBy   String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+}
+
+model SystemSettings {
+  id             String  @id @default(cuid())
+  // Application Settings
+  appName        String  @default("EduStack")
+  appVersion     String  @default("1.0.0")
+  appDescription String? @default("Comprehensive School Management System")
+  appLogo        String?
+  appFavicon     String?
+
+  // System Configuration
+  maintenanceMode          Boolean @default(false)
+  maintenanceMessage       String? @default("System is under maintenance. Please try again later.")
+  allowRegistration        Boolean @default(true)
+  requireEmailVerification Boolean @default(true)
+
+  // Security Settings
+  sessionTimeout        Int     @default(3600) // in seconds
+  maxLoginAttempts      Int     @default(5)
+  passwordMinLength     Int     @default(8)
+  requireStrongPassword Boolean @default(true)
+
+  // File Upload Settings
+  maxFileSize      Int      @default(10485760) // 10MB in bytes
+  allowedFileTypes String[] @default(["jpg", "jpeg", "png", "pdf", "doc", "docx"])
+
+  // Notification Settings
+  enableEmailNotifications Boolean @default(true)
+  enableSmsNotifications   Boolean @default(false)
+  enablePushNotifications  Boolean @default(true)
+
+  // System Metadata
+  isOnboarded Boolean   @default(false)
+  onboardedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model OnboardingStatus {
+  id String @id @default(cuid())
+
+  // Onboarding Steps
+  step1_superAdmin     Boolean @default(false) // Super admin creation
+  step2_schoolSetup    Boolean @default(false) // First school setup
+  step3_finalReview    Boolean @default(false) // Final review and completion
+
+  // Progress Tracking
+  currentStep          Int   @default(1)
+  totalSteps           Int   @default(3)
+  completionPercentage Float @default(0.0)
+
+  // Metadata
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  lastUpdatedStep Int?
+  lastUpdatedAt   DateTime  @updatedAt
+
+  // Configuration Data (JSON storage for flexibility)
+  configData Json? // Store step-specific configuration
+
+  @@map("onboarding_status")
+}
+
+enum SystemLogLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+model SystemLog {
+  id        String         @id @default(cuid())
+  level     SystemLogLevel @default(INFO)
+  category  String // AUTH, SYSTEM, ONBOARDING, etc.
+  message   String
+  details   Json?
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+
+  @@index([level, category, createdAt])
+  @@map("system_logs")
 }

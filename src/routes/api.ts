@@ -7,6 +7,7 @@ import studentRoutes from "./studentRoutes";
 import staffRoutes from "./staffRoutes";
 import notificationRoutes from "./notificationRoutes";
 import subjectRoutes from "./subjectRoutes";
+import systemRoutes from "./systemRoutes";
 import { verifyToken } from "../middlewares/authorization";
 import attendanceRoutes from "./attendanceRoutes";
 import timetableRoutes from "./timetableRoutes";
@@ -31,6 +32,7 @@ examRoutes.use("/psychomotor", psychomotorRoutes);
 examRoutes.use("/reports", reportRoutes);
 
 router.use("/auth", authRoute);
+router.use("/system", systemRoutes);
 router.use("/school", schoolRoute);
 router.use("/session", sessionRoutes);
 router.use("/class", classRoutes);
