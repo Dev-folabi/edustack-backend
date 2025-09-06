@@ -1,0 +1,2682 @@
+{
+  "info": {
+    "_postman_id": "f73e8dad-4554-442c-aeb5-0ef0348796e5",
+    "name": "EDU STACK RESTful API - Complete",
+    "description": "# 🎓 EDU STACK Complete API Documentation\n\nThis comprehensive collection covers all endpoints in the EDU STACK microservice including:\n\n- **Authentication & Authorization**\n- **School Management**\n- **Student & Staff Management**\n- **Class & Subject Management**\n- **Attendance Tracking**\n- **Timetable Management**\n- **Exam & CBT System**\n- **Accounting & Finance**\n- **Notifications**\n- **System Settings**\n\n## 🔐 Authentication\nMost endpoints require authentication. Use the login endpoint to get a token, which will be automatically set in the environment variable `token`.\n\n## 🏫 Multi-School Support\nThe system supports multiple schools. Make sure to use the correct `schoolId` in your requests.\n\n## 📊 Pagination\nMany list endpoints support pagination with `page` and `limit` query parameters.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "37738967"
+  },
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "description": "Authentication and authorization endpoints",
+      "item": [
+        {
+          "name": "System Initialize",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Super Admin\",\n    \"email\": \"admin@edustack.com\",\n    \"password\": \"SecurePass123!\",\n    \"username\": \"superadmin\"\n}"
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/initialize",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "initialize"]
+            },
+            "description": "Initialize the system with the first super admin user. This should be called only once when setting up the system."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const jsonData = JSON.parse(responseBody);",
+                  "if(jsonData.success){",
+                  "postman.setEnvironmentVariable(\"token\", jsonData?.data.token)",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"emailOrUsername\": \"admin@edustack.com\",\n    \"password\": \"SecurePass123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/login",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with email/username and password. Returns user data and JWT token."
+          }
+        },
+        {
+          "name": "Staff Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"teacher@school.com\",\n    \"password\": \"123456\",\n    \"username\": \"teacher1\",\n    \"name\": \"John Teacher\",\n    \"phone\": [\"1234567890\"],\n    \"address\": \"123 School St\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"role\": \"teacher\",\n    \"designation\": \"Math Teacher\",\n    \"dob\": \"1985-05-15\",\n    \"salary\": 50000,\n    \"joining_date\": \"2024-01-01\",\n    \"gender\": \"male\",\n    \"isActive\": true,\n    \"qualification\": \"Master's in Mathematics\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/staff-signup",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "staff-signup"]
+            },
+            "description": "Register a new staff member (teacher, admin, finance, librarian)"
+          }
+        },
+        {
+          "name": "Student Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"student@school.com\",\n    \"password\": \"123456\",\n    \"username\": \"student1\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"classId\": \"{{classId}}\",\n    \"sectionId\": \"{{sectionId}}\",\n    \"name\": \"Jane Student\",\n    \"gender\": \"female\",\n    \"dob\": \"2010-04-15\",\n    \"phone\": \"0987654321\",\n    \"address\": \"456 Student Ave\",\n    \"admission_date\": \"2024-09-01\",\n    \"religion\": \"Christianity\",\n    \"blood_group\": \"O+\",\n    \"father_name\": \"Mr. Parent\",\n    \"mother_name\": \"Mrs. Parent\",\n    \"father_occupation\": \"Engineer\",\n    \"mother_occupation\": \"Doctor\",\n    \"isActive\": true,\n    \"guardian_name\": \"Guardian Name\",\n    \"guardian_phone\": [\"1234567890\"],\n    \"guardian_email\": \"guardian@email.com\",\n    \"guardian_username\": \"guardian1\",\n    \"guardian_password\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/student-signup",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "student-signup"]
+            },
+            "description": "Register a new student with guardian information"
+          }
+        },
+        {
+          "name": "Verify Email OTP",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\",\n    \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/verify-email-otp",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "verify-email-otp"]
+            },
+            "description": "Verify email with OTP code"
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/resend-otp",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "resend-otp"]
+            },
+            "description": "Resend OTP to email"
+          }
+        },
+        {
+          "name": "Request Password Reset",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/request-reset",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "request-reset"]
+            },
+            "description": "Request password reset link"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"reset-token\",\n    \"newPassword\": \"NewSecurePass123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/auth/reset-password",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "reset-password"]
+            },
+            "description": "Reset password with token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/auth/logout",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout user and invalidate token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏫 School Management",
+      "description": "School creation and management endpoints",
+      "item": [
+        {
+          "name": "Create School",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Greenwood High School\",\n    \"email\": \"info@greenwood.edu\",\n    \"phone\": [\"1234567890\", \"0987654321\"],\n    \"address\": \"123 Education Street, Learning City\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/school",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school"]
+            },
+            "description": "Create a new school (Super Admin only)"
+          }
+        },
+        {
+          "name": "Get User Schools",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/school",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school"]
+            },
+            "description": "Get schools associated with the current user"
+          }
+        },
+        {
+          "name": "Get All Schools",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/school/all",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school", "all"]
+            },
+            "description": "Get all schools (public endpoint)"
+          }
+        },
+        {
+          "name": "Get School by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/school/{{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school", "{{schoolId}}"]
+            },
+            "description": "Get specific school details"
+          }
+        },
+        {
+          "name": "Update School",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated School Name\",\n    \"email\": \"updated@school.edu\",\n    \"phone\": [\"1111111111\"],\n    \"address\": \"Updated Address\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/school/{{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school", "{{schoolId}}"]
+            },
+            "description": "Update school information (Super Admin only)"
+          }
+        },
+        {
+          "name": "Delete School",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/school/{{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "school", "{{schoolId}}"]
+            },
+            "description": "Delete school (Super Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎓 Student Management",
+      "description": "Student management endpoints",
+      "item": [
+        {
+          "name": "Register Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"student@school.com\",\n    \"password\": \"123456\",\n    \"username\": \"student1\",\n    \"classId\": \"{{classId}}\",\n    \"sectionId\": \"{{sectionId}}\",\n    \"name\": \"Jane Student\",\n    \"gender\": \"female\",\n    \"dob\": \"2010-04-15\",\n    \"phone\": \"0987654321\",\n    \"address\": \"456 Student Ave\",\n    \"admission_date\": \"2024-09-01\",\n    \"religion\": \"Christianity\",\n    \"blood_group\": \"O+\",\n    \"father_name\": \"Mr. Parent\",\n    \"mother_name\": \"Mrs. Parent\",\n    \"father_occupation\": \"Engineer\",\n    \"mother_occupation\": \"Doctor\",\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/students/register/{{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "register", "{{schoolId}}"]
+            },
+            "description": "Register a new student (Admin only)"
+          }
+        },
+        {
+          "name": "Get Students by School",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/students/{{schoolId}}/all?page=1&limit=10&classId={{classId}}&sectionId={{sectionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "{{schoolId}}", "all"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                },
+                {
+                  "key": "sectionId",
+                  "value": "{{sectionId}}"
+                }
+              ]
+            },
+            "description": "Get all students in a school with optional filters"
+          }
+        },
+        {
+          "name": "Get Transfer Students",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/students/{{schoolId}}/transfer",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "{{schoolId}}", "transfer"]
+            },
+            "description": "Get students marked for transfer (Admin only)"
+          }
+        },
+        {
+          "name": "Get Student Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/students/{{studentId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "{{studentId}}"]
+            },
+            "description": "Get detailed information about a specific student"
+          }
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Student Name\",\n    \"phone\": \"1111111111\",\n    \"address\": \"Updated Address\",\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/students/{{studentId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "{{studentId}}"]
+            },
+            "description": "Update student information (Admin only)"
+          }
+        },
+        {
+          "name": "Promote Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"studentId\": \"{{studentId}}\",\n    \"newClassId\": \"{{newClassId}}\",\n    \"newSectionId\": \"{{newSectionId}}\",\n    \"sessionId\": \"{{sessionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/students/promote",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "promote"]
+            },
+            "description": "Promote student to next class/section"
+          }
+        },
+        {
+          "name": "Transfer Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"studentId\": \"{{studentId}}\",\n    \"reason\": \"Family relocation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/students/transfer",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "students", "transfer"]
+            },
+            "description": "Mark student for transfer (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Staff Management",
+      "description": "Staff management endpoints",
+      "item": [
+        {
+          "name": "Create Staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"staff@school.com\",\n    \"password\": \"123456\",\n    \"username\": \"staff1\",\n    \"name\": \"John Staff\",\n    \"phone\": [\"1234567890\"],\n    \"address\": \"123 Staff St\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"role\": \"teacher\",\n    \"designation\": \"Math Teacher\",\n    \"dob\": \"1985-05-15\",\n    \"salary\": 50000,\n    \"joining_date\": \"2024-01-01\",\n    \"gender\": \"male\",\n    \"isActive\": true,\n    \"qualification\": \"Master's in Mathematics\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/staff",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "staff"]
+            },
+            "description": "Create new staff member (Admin only)"
+          }
+        },
+        {
+          "name": "Get Staff by School",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/staff/school/{{schoolId}}?page=1&limit=10&role=teacher",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "staff", "school", "{{schoolId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "teacher"
+                }
+              ]
+            },
+            "description": "Get all staff members in a school (Admin only)"
+          }
+        },
+        {
+          "name": "Get Staff by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/staff/{{schoolId}}/{{staffId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "staff", "{{schoolId}}", "{{staffId}}"]
+            },
+            "description": "Get specific staff member details (Admin only)"
+          }
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Staff Name\",\n    \"phone\": [\"1111111111\"],\n    \"address\": \"Updated Address\",\n    \"salary\": 55000,\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/staff/{{staffId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "staff", "{{staffId}}"]
+            },
+            "description": "Update staff member information"
+          }
+        },
+        {
+          "name": "Delete Staff",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/staff/{{schoolId}}/{{staffId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "staff", "{{schoolId}}", "{{staffId}}"]
+            },
+            "description": "Delete staff member (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏛️ Class Management",
+      "description": "Class and section management endpoints",
+      "item": [
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Grade 10\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"sections\": [\n        {\n            \"name\": \"A\",\n            \"capacity\": 30\n        },\n        {\n            \"name\": \"B\",\n            \"capacity\": 30\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/class",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class"]
+            },
+            "description": "Create a new class with sections (Admin only)"
+          }
+        },
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/class?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all classes, optionally filtered by school"
+          }
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Get specific class details with sections"
+          }
+        },
+        {
+          "name": "Update Class",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Grade 10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Update class information (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Class",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Delete class (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📚 Subject Management",
+      "description": "Subject management endpoints",
+      "item": [
+        {
+          "name": "Create Subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Mathematics\",\n    \"code\": \"MATH101\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"classId\": \"{{classId}}\",\n    \"description\": \"Advanced Mathematics for Grade 10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subjects",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects"]
+            },
+            "description": "Create a new subject (Admin only)"
+          }
+        },
+        {
+          "name": "Get Subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subjects?schoolId={{schoolId}}&classId={{classId}}&page=1&limit=10",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                },
+                {
+                  "key": "classId",
+                  "value": "{{classId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get subjects with optional filters"
+          }
+        },
+        {
+          "name": "Get Subject by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subjects/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects", "{{subjectId}}"]
+            },
+            "description": "Get specific subject details"
+          }
+        },
+        {
+          "name": "Update Subject",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Advanced Mathematics\",\n    \"description\": \"Updated description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subjects/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects", "{{subjectId}}"]
+            },
+            "description": "Update subject information (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Subject",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subjects/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects", "{{subjectId}}"]
+            },
+            "description": "Delete subject (Admin only)"
+          }
+        },
+        {
+          "name": "Assign Teacher to Subject",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"teacherId\": \"{{teacherId}}\",\n    \"sectionId\": \"{{sectionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subjects/{{subjectId}}/teacher",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subjects", "{{subjectId}}", "teacher"]
+            },
+            "description": "Assign teacher to subject for specific section (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 Session Management",
+      "description": "Academic session and term management",
+      "item": [
+        {
+          "name": "Create Session with Terms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"2024/2025 Academic Session\",\n    \"startDate\": \"2024-09-01\",\n    \"endDate\": \"2025-07-31\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"terms\": [\n        {\n            \"name\": \"First Term\",\n            \"startDate\": \"2024-09-01\",\n            \"endDate\": \"2024-12-15\"\n        },\n        {\n            \"name\": \"Second Term\",\n            \"startDate\": \"2025-01-08\",\n            \"endDate\": \"2025-04-15\"\n        },\n        {\n            \"name\": \"Third Term\",\n            \"startDate\": \"2025-04-22\",\n            \"endDate\": \"2025-07-31\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/session",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session"]
+            },
+            "description": "Create new academic session with terms (Super Admin only)"
+          }
+        },
+        {
+          "name": "Get Current Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/session?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get current active session"
+          }
+        },
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/session/all?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "all"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all sessions for a school"
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Get specific session details"
+          }
+        },
+        {
+          "name": "Get Session Terms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}/terms",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}", "terms"]
+            },
+            "description": "Get all terms for a specific session"
+          }
+        },
+        {
+          "name": "Get Term by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/session/term/{{termId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "term", "{{termId}}"]
+            },
+            "description": "Get specific term details"
+          }
+        },
+        {
+          "name": "Update Session",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated 2024/2025 Academic Session\",\n    \"endDate\": \"2025-08-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Update session information (Super Admin only)"
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Delete session (Super Admin only)"
+          }
+        },
+        {
+          "name": "Delete Term",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/term/{{termId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "term", "{{termId}}"]
+            },
+            "description": "Delete term (Super Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "✅ Attendance Management",
+      "description": "Student and staff attendance tracking",
+      "item": [
+        {
+          "name": "Take Section Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sectionId\": \"{{sectionId}}\",\n    \"date\": \"2024-01-15\",\n    \"records\": [\n        {\n            \"studentId\": \"{{studentId1}}\",\n            \"status\": \"present\"\n        },\n        {\n            \"studentId\": \"{{studentId2}}\",\n            \"status\": \"absent\",\n            \"reason\": \"Sick\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/section",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "section"]
+            },
+            "description": "Take attendance for entire section (Class Teacher)"
+          }
+        },
+        {
+          "name": "Take Subject Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sectionId\": \"{{sectionId}}\",\n    \"subjectId\": \"{{subjectId}}\",\n    \"date\": \"2024-01-15\",\n    \"records\": [\n        {\n            \"studentId\": \"{{studentId1}}\",\n            \"status\": \"present\"\n        },\n        {\n            \"studentId\": \"{{studentId2}}\",\n            \"status\": \"late\",\n            \"reason\": \"Traffic\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/subject",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "subject"]
+            },
+            "description": "Take attendance for specific subject (Subject Teacher)"
+          }
+        },
+        {
+          "name": "Get Student Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/student?studentId={{studentId}}&startDate=2024-01-01&endDate=2024-01-31&type=section&page=1&limit=10",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "student"],
+              "query": [
+                {
+                  "key": "studentId",
+                  "value": "{{studentId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-01-31"
+                },
+                {
+                  "key": "type",
+                  "value": "section"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get student attendance records with filters"
+          }
+        },
+        {
+          "name": "Take Staff Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolId\": \"{{schoolId}}\",\n    \"date\": \"2024-01-15\",\n    \"records\": [\n        {\n            \"staffId\": \"{{staffId1}}\",\n            \"status\": \"present\",\n            \"checkIn\": \"08:00\",\n            \"checkOut\": \"16:00\"\n        },\n        {\n            \"staffId\": \"{{staffId2}}\",\n            \"status\": \"absent\",\n            \"reason\": \"Medical leave\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/staff",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "staff"]
+            },
+            "description": "Take staff attendance (Admin only)"
+          }
+        },
+        {
+          "name": "Get Staff Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/staff?schoolId={{schoolId}}&staffId={{staffId}}&startDate=2024-01-01&endDate=2024-01-31&page=1&limit=10",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "staff"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                },
+                {
+                  "key": "staffId",
+                  "value": "{{staffId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-01-31"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get staff attendance records with filters"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📚 Class Management",
+      "description": "Class and section management endpoints",
+      "item": [
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Grade 10\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"sections\": [\n        {\n            \"name\": \"A\",\n            \"capacity\": 30\n        },\n        {\n            \"name\": \"B\",\n            \"capacity\": 30\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/class",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class"]
+            },
+            "description": "Create a new class with sections (Admin only)"
+          }
+        },
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/class?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all classes for a school"
+          }
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Get specific class details with sections"
+          }
+        },
+        {
+          "name": "Update Class",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Grade 10\",\n    \"sections\": [\n        {\n            \"name\": \"A\",\n            \"capacity\": 35\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Update class information (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Class",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/class/{{classId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "class", "{{classId}}"]
+            },
+            "description": "Delete class (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📖 Subject Management",
+      "description": "Subject management endpoints",
+      "item": [
+        {
+          "name": "Create Subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Mathematics\",\n    \"code\": \"MATH101\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"description\": \"Advanced Mathematics Course\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subject",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject"]
+            },
+            "description": "Create a new subject (Admin only)"
+          }
+        },
+        {
+          "name": "Get All Subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subject?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all subjects for a school"
+          }
+        },
+        {
+          "name": "Get Subject by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subject/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject", "{{subjectId}}"]
+            },
+            "description": "Get specific subject details"
+          }
+        },
+        {
+          "name": "Update Subject",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Advanced Mathematics\",\n    \"code\": \"MATH102\",\n    \"description\": \"Updated Mathematics Course\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subject/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject", "{{subjectId}}"]
+            },
+            "description": "Update subject information (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Subject",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/subject/{{subjectId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject", "{{subjectId}}"]
+            },
+            "description": "Delete subject (Admin only)"
+          }
+        },
+        {
+          "name": "Assign Teacher to Subject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"teacherId\": \"{{teacherId}}\",\n    \"classId\": \"{{classId}}\",\n    \"sectionId\": \"{{sectionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/subject/{{subjectId}}/teacher",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "subject", "{{subjectId}}", "teacher"]
+            },
+            "description": "Assign teacher to subject for specific class/section (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 Session Management",
+      "description": "Academic session and term management",
+      "item": [
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"2024/2025\",\n    \"startDate\": \"2024-09-01\",\n    \"endDate\": \"2025-07-31\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/session",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session"]
+            },
+            "description": "Create new academic session (Super Admin only)"
+          }
+        },
+        {
+          "name": "Get Current Session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get current active session for school"
+          }
+        },
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/all?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "all"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all sessions for school"
+          }
+        },
+        {
+          "name": "Get Session Terms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}/terms",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}", "terms"]
+            },
+            "description": "Get all terms for a session"
+          }
+        },
+        {
+          "name": "Get Term by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/term/{{termId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "term", "{{termId}}"]
+            },
+            "description": "Get specific term details"
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Get specific session details"
+          }
+        },
+        {
+          "name": "Update Session",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"2024/2025 Updated\",\n    \"startDate\": \"2024-09-15\",\n    \"endDate\": \"2025-08-15\",\n    \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Update session information (Super Admin only)"
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/{{sessionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "{{sessionId}}"]
+            },
+            "description": "Delete session (Super Admin only)"
+          }
+        },
+        {
+          "name": "Delete Term",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/session/term/{{termId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "session", "term", "{{termId}}"]
+            },
+            "description": "Delete term (Super Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Attendance Management",
+      "description": "Student and staff attendance tracking",
+      "item": [
+        {
+          "name": "Take Section Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sectionId\": \"{{sectionId}}\",\n    \"date\": \"2024-01-15\",\n    \"attendanceRecords\": [\n        {\n            \"studentId\": \"{{studentId1}}\",\n            \"status\": \"present\"\n        },\n        {\n            \"studentId\": \"{{studentId2}}\",\n            \"status\": \"absent\",\n            \"reason\": \"Sick\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/section",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "section"]
+            },
+            "description": "Take attendance for entire section (Teacher only)"
+          }
+        },
+        {
+          "name": "Take Subject Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sectionId\": \"{{sectionId}}\",\n    \"subjectId\": \"{{subjectId}}\",\n    \"date\": \"2024-01-15\",\n    \"attendanceRecords\": [\n        {\n            \"studentId\": \"{{studentId1}}\",\n            \"status\": \"present\"\n        },\n        {\n            \"studentId\": \"{{studentId2}}\",\n            \"status\": \"late\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/subject",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "subject"]
+            },
+            "description": "Take attendance for specific subject (Teacher only)"
+          }
+        },
+        {
+          "name": "View Student Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/student/{{studentId}}?startDate=2024-01-01&endDate=2024-01-31&type=section",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "student", "{{studentId}}"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-01-31"
+                },
+                {
+                  "key": "type",
+                  "value": "section"
+                }
+              ]
+            },
+            "description": "View attendance records for a student"
+          }
+        },
+        {
+          "name": "Take Staff Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolId\": \"{{schoolId}}\",\n    \"date\": \"2024-01-15\",\n    \"attendanceRecords\": [\n        {\n            \"staffId\": \"{{staffId1}}\",\n            \"status\": \"present\"\n        },\n        {\n            \"staffId\": \"{{staffId2}}\",\n            \"status\": \"absent\",\n            \"reason\": \"Medical leave\"\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/staff",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "staff"]
+            },
+            "description": "Take staff attendance (Admin only)"
+          }
+        },
+        {
+          "name": "View Staff Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/attendance/staff/{{staffId}}?startDate=2024-01-01&endDate=2024-01-31",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "attendance", "staff", "{{staffId}}"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-01-31"
+                }
+              ]
+            },
+            "description": "View attendance records for a staff member (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🗓️ Timetable Management",
+      "description": "Class timetable and schedule management",
+      "item": [
+        {
+          "name": "Create Timetable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sectionId\": \"{{sectionId}}\",\n    \"sessionId\": \"{{sessionId}}\",\n    \"termId\": \"{{termId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/timetable",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable"]
+            },
+            "description": "Create new timetable for section (Teacher only)"
+          }
+        },
+        {
+          "name": "Get Class Timetable",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/class/{{sectionId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "class", "{{sectionId}}"]
+            },
+            "description": "Get timetable for specific class/section"
+          }
+        },
+        {
+          "name": "Get School Timetables",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/school/{{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "school", "{{schoolId}}"]
+            },
+            "description": "Get all timetables for school (Teacher only)"
+          }
+        },
+        {
+          "name": "Delete Timetable",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/{{timetableId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "{{timetableId}}"]
+            },
+            "description": "Delete timetable (Teacher only)"
+          }
+        },
+        {
+          "name": "Create Timetable Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"timetableId\": \"{{timetableId}}\",\n    \"subjectId\": \"{{subjectId}}\",\n    \"teacherId\": \"{{teacherId}}\",\n    \"dayOfWeek\": \"monday\",\n    \"startTime\": \"09:00\",\n    \"endTime\": \"10:00\",\n    \"period\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/entries",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "entries"]
+            },
+            "description": "Add entry to timetable (Teacher only)"
+          }
+        },
+        {
+          "name": "Update Timetable Entry",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"subjectId\": \"{{subjectId}}\",\n    \"teacherId\": \"{{teacherId}}\",\n    \"startTime\": \"09:30\",\n    \"endTime\": \"10:30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/entries/{{entryId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "entries", "{{entryId}}"]
+            },
+            "description": "Update timetable entry (Teacher only)"
+          }
+        },
+        {
+          "name": "Delete Timetable Entry",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/timetable/entries/{{entryId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "timetable", "entries", "{{entryId}}"]
+            },
+            "description": "Delete timetable entry (Teacher only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📢 Notifications",
+      "description": "Notification and messaging system",
+      "item": [
+        {
+          "name": "Send Bulk Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Important Announcement\",\n    \"message\": \"School will be closed tomorrow due to weather conditions.\",\n    \"recipients\": [\"{{userId1}}\", \"{{userId2}}\"],\n    \"type\": \"announcement\",\n    \"priority\": \"high\",\n    \"scheduledFor\": \"2024-01-15T10:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/notifications",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "notifications"]
+            },
+            "description": "Send bulk message to multiple users (Admin only)"
+          }
+        },
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/notifications?page=1&limit=20&isRead=false",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "isRead",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Get notifications for current user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ System Settings",
+      "description": "System configuration and settings",
+      "item": [
+        {
+          "name": "Check System Onboarding",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/api/system/onboarding/check",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "system", "onboarding", "check"]
+            },
+            "description": "Check if system has been initialized (Public endpoint)"
+          }
+        },
+        {
+          "name": "Get System Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/system/settings",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "system", "settings"]
+            },
+            "description": "Get system settings (Admin only)"
+          }
+        },
+        {
+          "name": "Update System Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolName\": \"Updated School Name\",\n    \"academicYear\": \"2024-2025\",\n    \"currency\": \"USD\",\n    \"timezone\": \"UTC\",\n    \"dateFormat\": \"DD/MM/YYYY\",\n    \"emailNotifications\": true,\n    \"smsNotifications\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/system/settings",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "system", "settings"]
+            },
+            "description": "Update system settings (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Exam & CBT System",
+      "description": "Examination and Computer-Based Testing",
+      "item": [
+        {
+          "name": "Get Global Exam Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/exam/global",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "global"]
+            },
+            "description": "Get global exam settings"
+          }
+        },
+        {
+          "name": "Create Global Exam Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolId\": \"{{schoolId}}\",\n    \"passingGrade\": 50,\n    \"maxGrade\": 100,\n    \"gradingSystem\": \"percentage\",\n    \"examDuration\": 120,\n    \"allowRetake\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/exam/global",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "global"]
+            },
+            "description": "Create global exam settings (Admin only)"
+          }
+        },
+        {
+          "name": "Get Grade Criteria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/exam/grades?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "grades"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get grade criteria for school"
+          }
+        },
+        {
+          "name": "Create Grade Criteria",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolId\": \"{{schoolId}}\",\n    \"grade\": \"A\",\n    \"minScore\": 90,\n    \"maxScore\": 100,\n    \"description\": \"Excellent\",\n    \"gpa\": 4.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/exam/grades",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "grades"]
+            },
+            "description": "Create grade criteria (Admin only)"
+          }
+        },
+        {
+          "name": "Update Grade Criteria",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"grade\": \"A+\",\n    \"minScore\": 95,\n    \"maxScore\": 100,\n    \"description\": \"Outstanding\",\n    \"gpa\": 4.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/exam/grades/{{gradeId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "grades", "{{gradeId}}"]
+            },
+            "description": "Update grade criteria (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Grade Criteria",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/exam/grades/{{gradeId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "grades", "{{gradeId}}"]
+            },
+            "description": "Delete grade criteria (Admin only)"
+          }
+        },
+        {
+          "name": "Get Psychomotor Skills",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/exam/psychomotor?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "psychomotor"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get psychomotor skills for school"
+          }
+        },
+        {
+          "name": "Create Psychomotor Skill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"schoolId\": \"{{schoolId}}\",\n    \"name\": \"Handwriting\",\n    \"description\": \"Quality of handwriting and neatness\",\n    \"category\": \"motor_skills\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/exam/psychomotor",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "psychomotor"]
+            },
+            "description": "Create psychomotor skill (Admin only)"
+          }
+        },
+        {
+          "name": "Update Psychomotor Skill",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Creative Writing\",\n    \"description\": \"Creativity and expression in writing\",\n    \"category\": \"creativity\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/exam/psychomotor/{{psychomotorId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "psychomotor", "{{psychomotorId}}"]
+            },
+            "description": "Update psychomotor skill (Admin only)"
+          }
+        },
+        {
+          "name": "Delete Psychomotor Skill",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/exam/psychomotor/{{psychomotorId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "exam", "psychomotor", "{{psychomotorId}}"]
+            },
+            "description": "Delete psychomotor skill (Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Accounting & Finance",
+      "description": "Financial management and accounting",
+      "item": [
+        {
+          "name": "Create Fee Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Tuition Fee\",\n    \"description\": \"Monthly tuition fee\",\n    \"schoolId\": \"{{schoolId}}\",\n    \"amount\": 5000,\n    \"isRecurring\": true,\n    \"frequency\": \"monthly\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/fee-categories",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "fee-categories"]
+            },
+            "description": "Create fee category (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Get Fee Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/fee-categories?schoolId={{schoolId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "fee-categories"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                }
+              ]
+            },
+            "description": "Get all fee categories for school"
+          }
+        },
+        {
+          "name": "Update Fee Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Tuition Fee\",\n    \"description\": \"Updated monthly tuition fee\",\n    \"amount\": 5500,\n    \"isRecurring\": true,\n    \"frequency\": \"monthly\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/fee-categories/{{categoryId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "fee-categories", "{{categoryId}}"]
+            },
+            "description": "Update fee category (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Delete Fee Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/fee-categories/{{categoryId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "fee-categories", "{{categoryId}}"]
+            },
+            "description": "Delete fee category (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"studentId\": \"{{studentId}}\",\n    \"feeCategoryId\": \"{{categoryId}}\",\n    \"amount\": 5000,\n    \"dueDate\": \"2024-02-01\",\n    \"description\": \"January tuition fee\",\n    \"termId\": \"{{termId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/invoices",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "invoices"]
+            },
+            "description": "Create invoice for student (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Get Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/invoices?schoolId={{schoolId}}&status=pending&page=1&limit=10",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "invoices"],
+              "query": [
+                {
+                  "key": "schoolId",
+                  "value": "{{schoolId}}"
+                },
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get invoices with filters"
+          }
+        },
+        {
+          "name": "Get Invoice by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/invoices/{{invoiceId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "invoices", "{{invoiceId}}"]
+            },
+            "description": "Get specific invoice details"
+          }
+        },
+        {
+          "name": "Update Invoice",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amount\": 5500,\n    \"dueDate\": \"2024-02-15\",\n    \"description\": \"Updated January tuition fee\",\n    \"status\": \"pending\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/invoices/{{invoiceId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "invoices", "{{invoiceId}}"]
+            },
+            "description": "Update invoice (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Delete Invoice",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/invoices/{{invoiceId}}",
+              "host": ["{{auth_url}}"],
+              "path": ["api", "accounting", "invoices", "{{invoiceId}}"]
+            },
+            "description": "Delete invoice (Finance/Admin only)"
+          }
+        },
+        {
+          "name": "Record Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"invoiceId\": \"{{invoiceId}}\",\n    \"amount\": 5000,\n    \"paymentMethod\": \"cash\",\n    \"reference\": \"CASH001\",\n    \"notes\": \"Payment received in cash\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/api/accounting/payments",
+              "host": ["{{auth
