@@ -212,7 +212,7 @@ export const getAllClasses = async (
     };
     const classes = await prisma.classes.findMany({
       where: whereClause,
-      include: { sections: true, schools: { select: { name: true } }, teacherId: { select: {name: true}}  },
+      include: { sections: true, schools: { select: { name: true } },  },
       orderBy: { createdAt: "desc" },
       skip: (pageNumber - 1) * limitNumber,
       take: limitNumber,
@@ -241,7 +241,7 @@ export const getClassById = async (
     const classId = req.params.id;
     const foundClass = await prisma.classes.findUnique({
       where: { id: classId },
-      include: { sections: true, schools: { select: { name: true } }, teacherId: { select: {name: true}} },
+      include: { sections: true, schools: { select: { name: true } }, },
     });
     if (!foundClass) return handleError(res, "Class not found.", 404);
     res
