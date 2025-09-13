@@ -79,23 +79,6 @@ const _synchronizeClassSectionsInTransaction = async (
       s.name.toUpperCase()
     );
 
-    const namesToDelete = existingSectionnames.filter(
-      (name) => !desiredSectionnames.includes(name)
-    );
-    if (namesToDelete.length > 0) {
-      const sectionIdsToDelete = existingSections
-        .filter((cs) => namesToDelete.includes(cs.name.toUpperCase()))
-        .map((cs) => cs.id);
-      if (sectionIdsToDelete.length > 0) {
-        await tx.class_Section.deleteMany({
-          where: { id: { in: sectionIdsToDelete } },
-        });
-        logger.info(
-          { classId, deletedSectionIds: sectionIdsToDelete },
-          "Sections deleted for class update."
-        );
-      }
-    }
 
     const namesToAdd = desiredSectionnames.filter(
       (name) => !existingSectionnames.includes(name)
@@ -170,7 +153,7 @@ export const createClass = async (
     const result = await prisma.$transaction(async (tx) => {
       const createdClasses = await Promise.all(
         uniqueSchoolIds.map((schId) =>
-          tx.classes.create({ data: { name, schoolId: schId } })
+          tx.classes.create({ data: { name: name.toUpperCase(), schoolId: schId } })
         )
       );
       await _createSectionsForClassesInTransaction(tx, createdClasses, section);
@@ -281,7 +264,7 @@ export const updateClass = async (
     const updatedClassData = await prisma.$transaction(async (tx) => {
       const updatedClass = await tx.classes.update({
         where: { id: classId },
-        data: { name: name !== undefined ? name : existingClass.name },
+        data: { name: name !== undefined ? name.toUpperCase() : existingClass.name.toUpperCase() },
       });
       await _synchronizeClassSectionsInTransaction(
         tx,
