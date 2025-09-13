@@ -1094,6 +1094,35 @@ export const validateUpdateClass = [
   handleValidationErrors,
 ];
 
+// Validation rules for updating a section
+export const validateUpdateSection = [
+  param("id")
+    .notEmpty()
+    .withMessage("Section ID is required")
+    .isString()
+    .withMessage("Section ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Section ID max length is 50"),
+  body("name")
+    .optional()
+    .isString()
+    .withMessage("Section name must be a string")
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Section name must be between 1 and 50 characters")
+    .matches(/^[a-zA-Z0-9\s_.-]+$/)
+    .withMessage(
+      "Section name can only contain alphanumeric characters, spaces, underscores, dots, or hyphens"
+    ),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  handleValidationErrors,
+];
+
 // Validation rules for transferring a student.
 export const validateTransferStudent = [
   body("studentId")
