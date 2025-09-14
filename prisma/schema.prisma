@@ -395,7 +395,6 @@ model Subject {
   ExamPaper    ExamPaper[]
   QuestionBank QuestionBank[]
 
-  @@unique([name, code])
   @@index([teacherId])
 }
 

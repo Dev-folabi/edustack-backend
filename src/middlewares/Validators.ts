@@ -1469,21 +1469,6 @@ export const validateGetSubjects = [
 ];
 
 export const validateUpdateSubjects = [
-  body("id")
-    .isArray()
-    .withMessage("id must be an array of strings")
-    .custom((value: string[]) => {
-      if (!value.length) {
-        throw new Error("At least one subject ID is required");
-      }
-      if (!value.every((id) => typeof id === "string" && id.length <= 50)) {
-        throw new Error(
-          "All subject IDs must be valid strings with max length 50"
-        );
-      }
-      return true;
-    }),
-
   body("name")
     .optional()
     .isString()
