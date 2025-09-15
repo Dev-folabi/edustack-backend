@@ -8,8 +8,10 @@ import {
   CreateEntryRequest,
   CreateTimetableRequest,
   UpdateEntryRequest,
+  UpdateTimetableRequest,
 } from "../types/requests";
 import { TEACHER_ROLES } from "../config/constants";
+import { paginateResults } from "../function/pagination";
 
 type PrismaTransactionClient = Omit<
   PrismaClient,
@@ -129,16 +131,23 @@ export const getSchoolTimetables = async (
 ) => {
   try {
     const { schoolId } = req.params;
+    const page = parseInt(req.query?.page as string, 12);
+    const limit = parseInt(req.query?.limit as string, 12);
+
     const timetables = await prisma.timetable.findMany({
       where: { schoolId },
       include: { entries: true, section: true, session: true, term: true },
       orderBy: { createdAt: "desc" },
     });
 
+    const totalRecords = await prisma.timetable.count({
+      where: { schoolId },
+    });
+
     res.status(200).json({
       success: true,
       message: "School timetables retrieved successfully.",
-      data: timetables,
+      data: paginateResults(timetables, page, limit, totalRecords),
     });
   } catch (error) {
     next(error);
@@ -161,13 +170,6 @@ export const getClassTimetable = async (
       include: { entries: true, section: true, session: true, term: true },
       orderBy: { createdAt: "desc" },
     });
-
-    if (!timetable)
-      return handleError(
-        res,
-        "No timetable found for this class section.",
-        404
-      );
 
     res.status(200).json({
       success: true,
@@ -500,6 +502,97 @@ export const deleteEntry = async (
     res.status(200).json({
       success: true,
       message: "Timetable entry deleted successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update a timetable
+ * @route PUT /api/timetables/:timetableId
+ */
+export const updateTimetable = async (
+  req: Request<{ timetableId: string }, {}, UpdateTimetableRequest>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { timetableId } = req.params;
+    const { schoolId, classId, sectionId, sessionId, termId, status } = req.body;
+
+    // Check if timetable exists
+    const existingTimetable = await prisma.timetable.findUnique({
+      where: { id: timetableId },
+      include: { entries: true },
+    });
+
+    if (!existingTimetable) {
+      return handleError(res, "Timetable not found.", 404);
+    }
+
+    // Authorization check
+    const reqToken = (req as any).user;
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      [existingTimetable.schoolId],
+      [...TEACHER_ROLES]
+    );
+
+    if (!isAdminAction) {
+      return handleError(
+        res,
+        "You are not authorized to update this timetable.",
+        403
+      );
+    }
+
+    // Validate school, section, session, term
+    const [school, section, session, term] = await Promise.all([
+      prisma.school.findUnique({ where: { id: schoolId, isActive: true } }),
+      prisma.class_Section.findUnique({ where: { id: sectionId, classId }, include: { classes: true } }),
+      prisma.session.findUnique({ where: { id: sessionId } }),
+      termId
+        ? prisma.term.findUnique({ where: { id: termId } })
+        : Promise.resolve(null),
+    ]);
+
+    if (!school) return handleError(res, "Invalid or inactive school.", 400);
+    if (!section) return handleError(res, "Invalid class section.", 400);
+    if (!session) return handleError(res, "Invalid session.", 400);
+    if (termId && !term) return handleError(res, "Invalid term.", 400);
+
+    // Update timetable in transaction
+    const updatedTimetable = await prisma.$transaction(
+      async (tx: PrismaTransactionClient) => {
+        // Update timetable basic info
+        const timetable = await tx.timetable.update({
+          where: { id: timetableId },
+          data: {
+            schoolId,
+            classId,
+            sectionId,
+            sessionId,
+            termId,
+            name: `${section.classes.name}-${section.name}`,
+            status,
+          },
+          include: { entries: true },
+        });
+
+        return timetable;
+      }
+    );
+
+    logger.info(
+      { timetableId },
+      "Timetable updated successfully."
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Timetable updated successfully.",
+      data: updatedTimetable,
     });
   } catch (error) {
     next(error);

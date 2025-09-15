@@ -214,6 +214,15 @@ export interface CreateEntryRequest extends TimetableEntry {
   timetableId: string;
 }
 
+export interface UpdateTimetableRequest {
+  schoolId: string;
+  classId: string;
+  sectionId: string;
+  sessionId: string;
+  termId?: string;
+  status: TimetableStatus;
+}
+
 export interface UpdateEntryRequest {
   day?: WeekDay[];
   startTime?: string;
