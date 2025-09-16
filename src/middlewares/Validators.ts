@@ -1645,13 +1645,13 @@ export const validateCreateEntry = [
     .withMessage("Day must be an array")
     .custom((value: string[]) => {
       const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+        "SUNDAY",
       ];
       if (!value.every((v) => typeof v === "string")) {
         throw new Error("All days must be strings");
@@ -1710,13 +1710,13 @@ export const validateUpdateEntry = [
     .withMessage("Day must be an array")
     .custom((value: string[]) => {
       const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+        "SUNDAY",
       ];
       if (!value.every((day) => validDays.includes(day))) {
         throw new Error(`Days must be one of: ${validDays.join(", ")}`);
