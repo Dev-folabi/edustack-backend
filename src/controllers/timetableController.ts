@@ -150,6 +150,7 @@ export const getSchoolTimetables = async (
       include: {
         entries: {
           select: {
+            id: true,
             day: true,
             startTime: true,
             endTime: true,
@@ -195,6 +196,7 @@ export const getClassTimetable = async (
       include: {
         entries: {
           select: {
+            id: true,
             day: true,
             startTime: true,
             endTime: true,
