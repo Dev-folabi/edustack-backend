@@ -1125,7 +1125,7 @@ export const validateUpdateSection = [
 
 // Validation rules for transferring a student.
 export const validateTransferStudent = [
-  body("studentId")
+  body("studentIds")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
     .isArray({ min: 1 })
@@ -1175,7 +1175,7 @@ export const validateTransferStudent = [
 
 // Validation for promoting student(s).
 export const validatePromoteStudent = [
-  body("studentId")
+  body("studentIds")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
     .isArray({ min: 1 })
@@ -1193,6 +1193,12 @@ export const validatePromoteStudent = [
       }
       return true;
     }),
+  body("isGraduate")
+    .notEmpty()
+    .withMessage("isGraduate is required")
+    .isBoolean()
+    .withMessage("isGraduate must be a boolean"),
+
   body("fromClassId")
     .optional()
     .isString()
@@ -1200,33 +1206,41 @@ export const validatePromoteStudent = [
     .isLength({ max: 50 })
     .withMessage("From class ID max length is 50"),
   body("toClassId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("To class ID is required")
     .isString()
     .withMessage("To class ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("To class ID max length is 50"),
+    .withMessage("To class ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("sectionId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
-    .withMessage("Target Section ID is required")
+    .withMessage("Target Section ID is required") 
     .isString()
     .withMessage("Section ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Section ID max length is 50"),
+    .withMessage("Section ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("promoteSessionId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("Promote session ID is required")
     .isString()
     .withMessage("Promote session ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Promote session ID max length is 50"),
+    .withMessage("Promote session ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("promoteTermId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("Promote term ID is required")
     .isString()
     .withMessage("Promote term ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Promote term ID max length is 50"),
+    .withMessage("Promote term ID max length is 50")
+    .optional({ checkFalsy: true }),
   handleValidationErrors,
 ];
 

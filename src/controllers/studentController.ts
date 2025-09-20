@@ -459,12 +459,13 @@ export const promoteStudent = async (
 ) => {
   try {
     const {
-      studentId: studentIds,
+      studentIds: studentIds,
       fromClassId,
       toClassId,
       sectionId,
       promoteSessionId,
       promoteTermId,
+      isGraduate,
     } = req.body;
 
     const promotedByUserId = getIdFromToken(req);
@@ -472,22 +473,78 @@ export const promoteStudent = async (
       logger.error(
         "Failed to get user ID from token for promotion. Unauthorized."
       );
-      return handleError(
+      handleError(
         res,
         "User authentication failed, cannot perform promotion.",
         401
       );
+      return;
     }
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       logger.warn(
         { providedStudentId: studentIds },
         "Invalid studentId(s) for promotion: must be non-empty array."
       );
-      return handleError(
+      handleError(
         res,
         "studentId must be a non-empty array of student IDs.",
         400
       );
+      return;
+    }
+
+    if (isGraduate) {
+      const enrolledStudents = await prisma.studentEnrollment.findMany({
+        where: {
+          studentId: { in: studentIds },
+          classId: fromClassId,
+          sectionId: sectionId,
+          status: "enrolled",
+        },
+        include: {
+          student: true,
+        },
+      });
+
+      if (enrolledStudents.length !== studentIds.length) {
+        logger.warn(
+          {
+            providedIds: studentIds,
+            foundEnrollments: enrolledStudents.length,
+          },
+          "Not all students are currently enrolled for graduation"
+        );
+        handleError(
+          res,
+          "All students must be currently enrolled to graduate",
+          400
+        );
+        return;
+      }
+
+      // Update enrollment status to graduated
+      await prisma.studentEnrollment.updateMany({
+        where: {
+          studentId: { in: studentIds },
+          classId: fromClassId,
+          sectionId: sectionId,
+          status: "enrolled",
+        },
+        data: {
+          status: "graduated",
+        },
+      });
+
+      logger.info(
+        { graduatedStudentIds: studentIds },
+        "Students marked as graduated successfully"
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Students graduated successfully",
+      });
+      return;
     }
 
     const prereqResult = await _validatePromotionPrerequisites(
@@ -648,8 +705,7 @@ const _validateTransferPrerequisitesAndGetContext = async (
       return {
         success: false,
         error: {
-          message:
-            "All students must belong to the same origin school.",
+          message: "All students must belong to the same origin school.",
           status: 400,
         },
       };
@@ -767,7 +823,7 @@ export const transferStudent = async (
 ) => {
   try {
     const {
-      studentId: studentIds,
+      studentIds: studentIds,
       toSchoolId,
       toClassId,
       toSectionId,
@@ -985,6 +1041,8 @@ export const updateStudent = async (
       );
     }
 
+    const { classId, sectionId, ...studentDataToUpdate } = studentUpdateData;
+
     const updated = await prisma.$transaction(async (tx) => {
       if (Object.keys(userUpdateData).length > 0) {
         await tx.user.update({
@@ -993,11 +1051,27 @@ export const updateStudent = async (
         });
       }
 
-      if (Object.keys(studentUpdateData).length > 0) {
+      if (Object.keys(studentDataToUpdate).length > 0) {
         await tx.student.update({
           where: { id: studentId },
-          data: studentUpdateData,
+          data: studentDataToUpdate,
         });
+      }
+
+      if (classId || sectionId) {
+        const studentEnrollment = await tx.studentEnrollment.findFirst({
+          where: { studentId: studentId },
+        });
+
+        if (studentEnrollment) {
+          await tx.studentEnrollment.update({
+            where: { id: studentEnrollment.id },
+            data: {
+              classId: classId ?? undefined,
+              sectionId: sectionId ?? undefined,
+            },
+          });
+        }
       }
 
       return tx.student.findUnique({
