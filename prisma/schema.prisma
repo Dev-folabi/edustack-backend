@@ -55,6 +55,7 @@ model School {
   toTransfers        StudentTransfer[]   @relation("ToSchoolRelation")
   subjects           SubjectSchool[]
   timetables         Timetable[]
+  School             Exam[]
   GlobalExamSettings GlobalExamSettings?
   GradeCriteria      GradeCriteria[]
   PsychomotorSkill   PsychomotorSkill[]
@@ -621,6 +622,8 @@ model Exam {
   title       String
   startDate   DateTime
   endDate     DateTime
+  schoolId    String
+  school      School         @relation(fields: [schoolId], references: [id])
   classId     String
   class       Classes        @relation(fields: [classId], references: [id])
   sectionId   String?
@@ -630,8 +633,8 @@ model Exam {
   sessionId   String
   session     Session        @relation(fields: [sessionId], references: [id])
   status      ExamStatus     @default(Draft)
-  createdById String
-  createdBy   Staff          @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdBy   Staff?         @relation(fields: [createdById], references: [id])
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   papers      ExamPaper[]
@@ -664,8 +667,8 @@ model QuestionBank {
   subject     Subject     @relation(fields: [subjectId], references: [id])
   name        String
   description String?
-  createdById String
-  createdBy   Staff       @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdBy   Staff?      @relation(fields: [createdById], references: [id])
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   questions   Question[]
@@ -681,11 +684,11 @@ model Question {
   type          QuestionType
   questionText  String
   options       Json?
-  correctAnswer Json
+  correctAnswer Json?
   marks         Float
   difficulty    DifficultyLevel
-  createdById   String
-  createdBy     Staff           @relation(fields: [createdById], references: [id])
+  createdById   String?
+  createdBy     Staff?          @relation(fields: [createdById], references: [id])
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   responses     ExamResponse[]
@@ -967,9 +970,9 @@ model OnboardingStatus {
   id String @id @default(cuid())
 
   // Onboarding Steps
-  step1_superAdmin     Boolean @default(false) // Super admin creation
-  step2_schoolSetup    Boolean @default(false) // First school setup
-  step3_finalReview    Boolean @default(false) // Final review and completion
+  step1_superAdmin  Boolean @default(false) // Super admin creation
+  step2_schoolSetup Boolean @default(false) // First school setup
+  step3_finalReview Boolean @default(false) // Final review and completion
 
   // Progress Tracking
   currentStep          Int   @default(1)

@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
-import { getIdFromToken } from "../../function/token";
 import { getStaffInfoFromRequest } from "../../function/schoolFunctions";
 
 /**
@@ -18,7 +17,7 @@ export const createExam = async (
     const staffInfo = await getStaffInfoFromRequest(req, res);
     if (!staffInfo) return;
 
-    const { title, startDate, endDate, classId, sectionId, termId, sessionId } =
+    const { title, startDate, endDate, classId, sectionId, termId, sessionId, schoolId } =
       req.body;
 
     const newExam = await prisma.exam.create({
@@ -30,7 +29,8 @@ export const createExam = async (
         sectionId,
         termId,
         sessionId,
-        createdById: staffInfo.staffId,
+        schoolId,
+        ...(staffInfo.role === "STAFF" && { createdById: staffInfo.staffId! }),
       },
     });
 
@@ -152,8 +152,8 @@ export const addExamPaper = async (
           startTime: new Date(startTime),
           endTime: new Date(endTime),
           mode,
-          questionBankId,
-          totalQuestions,
+          ...(questionBankId && { questionBankId }),
+          ...(totalQuestions && { totalQuestions }),
         },
       });
 
@@ -222,8 +222,8 @@ export const updateExamPaper = async (
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
         mode,
-        questionBankId,
-        totalQuestions,
+        ...(questionBankId && { questionBankId }),
+        ...(totalQuestions && { totalQuestions }),
       },
     });
 
@@ -301,24 +301,62 @@ export const getExams = async (
   next: NextFunction
 ) => {
   try {
-    const { classId, termId, sessionId } = req.query;
+    const { schoolId, classId, termId, sessionId } = req.query;
 
-    if (!classId || !termId || !sessionId) {
+    if (!schoolId) {
       return handleError(
         res,
-        "classId, termId, and sessionId are required query parameters.",
+        "schoolId is required query parameters.",
         400
       );
     }
 
     const exams = await prisma.exam.findMany({
       where: {
-        classId: classId as string,
-        termId: termId as string,
-        sessionId: sessionId as string,
+        schoolId: schoolId as string,
+        ...(classId && { classId: classId as string }),
+        ...(termId && { termId: termId as string }),
+        ...(sessionId && { sessionId: sessionId as string }),
       },
       include: {
-        papers: true,
+        papers: {
+          select: {
+            id: true,
+            subjectId: true,
+            maxMarks: true,
+            paperDate: true,
+            startTime: true,
+            endTime: true,
+            mode: true,
+            questionBankId: true,
+            totalQuestions: true,
+          }
+        },
+        school: {
+          select: {
+            name: true
+          }
+        },
+        class: {
+          select: {
+            name: true
+          }
+        },
+        section: {
+          select: {
+            name: true
+          }
+        },
+        term: {
+          select: {
+            name: true
+          }
+        },
+        session: {
+          select: {
+            name: true
+          }
+        }
       },
       orderBy: {
         startDate: "asc",
@@ -350,6 +388,31 @@ export const getExamById = async (
     const exam = await prisma.exam.findUnique({
       where: { id },
       include: {
+        school: {
+          select: {
+            name: true
+          }
+        },
+        class: {
+          select: {
+            name: true
+          }
+        },
+        section: {
+          select: {
+            name: true
+          }
+        },
+        term: {
+          select: {
+            name: true
+          }
+        },
+        session: {
+          select: {
+            name: true
+          }
+        },
         papers: {
           include: {
             subject: true,
@@ -384,7 +447,7 @@ export const updateExam = async (
 ) => {
   try {
     const { id } = req.params;
-    const { title, startDate, endDate, status } = req.body;
+    const { title, startDate, endDate, status, schoolId, classId, termId, sessionId } = req.body;
 
     const exam = await prisma.exam.findUnique({ where: { id } });
     if (!exam) {
@@ -405,6 +468,10 @@ export const updateExam = async (
         title,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
+        schoolId,
+        classId,
+        termId,
+        sessionId,
         status,
       },
     });

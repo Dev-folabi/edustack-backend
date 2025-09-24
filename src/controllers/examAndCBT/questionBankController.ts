@@ -24,12 +24,12 @@ export const createQuestionBank = async (
         name,
         description,
         subjectId,
-        createdById: staffInfo.staffId,
+        ...(staffInfo.role === "STAFF" && { createdById: staffInfo.staffId! }),
       },
     });
 
     logger.info(
-      { bankId: newBank.id, createdBy: staffInfo.staffId },
+      { bankId: newBank.id, createdBy: staffInfo.staffId || staffInfo.userId },
       "Question Bank created successfully."
     );
 
@@ -81,7 +81,9 @@ export const addQuestionToBank = async (
             correctAnswer: question.correctAnswer,
             marks: question.marks,
             difficulty: question.difficulty,
-            createdById: staffInfo.staffId,
+            ...(staffInfo.role === "STAFF" && {
+              createdById: staffInfo.staffId!,
+            }),
           },
         })
       )
