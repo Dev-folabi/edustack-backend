@@ -17,8 +17,16 @@ export const createExam = async (
     const staffInfo = await getStaffInfoFromRequest(req, res);
     if (!staffInfo) return;
 
-    const { title, startDate, endDate, classId, sectionId, termId, sessionId, schoolId } =
-      req.body;
+    const {
+      title,
+      startDate,
+      endDate,
+      classId,
+      sectionId,
+      termId,
+      sessionId,
+      schoolId,
+    } = req.body;
 
     const newExam = await prisma.exam.create({
       data: {
@@ -84,6 +92,8 @@ export const getExamTimetable = async (
             exam: {
               select: {
                 title: true,
+                startDate: true,
+                endDate: true,
               },
             },
           },
@@ -304,11 +314,7 @@ export const getExams = async (
     const { schoolId, classId, termId, sessionId } = req.query;
 
     if (!schoolId) {
-      return handleError(
-        res,
-        "schoolId is required query parameters.",
-        400
-      );
+      return handleError(res, "schoolId is required query parameters.", 400);
     }
 
     const exams = await prisma.exam.findMany({
@@ -330,33 +336,33 @@ export const getExams = async (
             mode: true,
             questionBankId: true,
             totalQuestions: true,
-          }
+          },
         },
         school: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         class: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         section: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         term: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         session: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
         startDate: "asc",
@@ -390,28 +396,28 @@ export const getExamById = async (
       include: {
         school: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         class: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         section: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         term: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         session: {
           select: {
-            name: true
-          }
+            name: true,
+          },
         },
         papers: {
           include: {
@@ -447,7 +453,16 @@ export const updateExam = async (
 ) => {
   try {
     const { id } = req.params;
-    const { title, startDate, endDate, status, schoolId, classId, termId, sessionId } = req.body;
+    const {
+      title,
+      startDate,
+      endDate,
+      status,
+      schoolId,
+      classId,
+      termId,
+      sessionId,
+    } = req.body;
 
     const exam = await prisma.exam.findUnique({ where: { id } });
     if (!exam) {
@@ -462,18 +477,35 @@ export const updateExam = async (
       );
     }
 
-    const updatedExam = await prisma.exam.update({
-      where: { id },
-      data: {
-        title,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        schoolId,
-        classId,
-        termId,
-        sessionId,
-        status,
-      },
+    const updatedExam = await prisma.$transaction(async (tx) => {
+      const examUpdate = await tx.exam.update({
+        where: { id },
+        data: {
+          title,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          schoolId,
+          classId,
+          termId,
+          sessionId,
+          status,
+        },
+      });
+
+      // Update the corresponding examTimetable entries
+      await tx.examTimetable.updateMany({
+        where: {
+          examPaper: {
+            examId: id,
+          },
+        },
+        data: {
+          classId: classId || undefined,
+          termId: termId || undefined,
+          sessionId: sessionId || undefined,
+        },
+      });
+      return examUpdate;
     });
 
     logger.info({ examId: updatedExam.id }, "Exam updated successfully.");
