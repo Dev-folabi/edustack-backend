@@ -2,9 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
+import { getStaffInfoFromRequest } from "../../function/schoolFunctions";
 
 /**
- * Add or update marks for a paper-based exam for a single student.
+ * Add or update marks for a paper-based exam and optionally psychomotor assessments for a single student.
  * @route POST /api/results/manual-entry
  */
 export const addManualMarks = async (
@@ -13,7 +14,18 @@ export const addManualMarks = async (
   next: NextFunction
 ) => {
   try {
-    const { studentId, examPaperId, marksObtained, teacherRemark } = req.body;
+    const {
+      studentId,
+      examPaperId,
+      marksObtained,
+      teacherRemark,
+      psychomotorAssessments, // Expected: [{ skillId, rating }]
+      termId,
+      sessionId,
+    } = req.body;
+
+    const staffInfo = await getStaffInfoFromRequest(req, res);
+    if (!staffInfo) return;
 
     const examPaper = await prisma.examPaper.findUnique({
       where: { id: examPaperId },
@@ -25,37 +37,72 @@ export const addManualMarks = async (
       return handleError(res, "This is only for paper-based exams.", 400);
     }
 
-    const result = await prisma.result.upsert({
-      where: {
-        studentId_examPaperId: {
-          studentId,
-          examPaperId,
+    await prisma.$transaction(async (tx) => {
+      // 1. Upsert the academic result
+      await tx.result.upsert({
+        where: {
+          studentId_examPaperId: { studentId, examPaperId },
         },
-      },
-      update: {
-        marksObtained,
-        teacherRemark,
-      },
-      create: {
-        studentId,
-        examPaperId,
-        marksObtained,
-        teacherRemark,
-      },
+        update: { marksObtained, teacherRemark },
+        create: { studentId, examPaperId, marksObtained, teacherRemark },
+      });
+
+      // 2. If psychomotor assessments are provided, process them
+      if (psychomotorAssessments && Array.isArray(psychomotorAssessments)) {
+        if (!termId || !sessionId) {
+          throw new Error(
+            "termId and sessionId are required when providing psychomotor assessments."
+          );
+        }
+
+        for (const assessment of psychomotorAssessments) {
+          const { skillId, rating } = assessment;
+          if (!skillId || rating === undefined) {
+            throw new Error(
+              "Each psychomotor assessment must include a skillId and a rating."
+            );
+          }
+
+          await tx.studentPsychomotorAssessment.upsert({
+            where: {
+              studentId_skillId_termId_sessionId: {
+                studentId,
+                skillId,
+                termId,
+                sessionId,
+              },
+            },
+            update: { rating, assessedById: staffInfo.staffId! },
+            create: {
+              studentId,
+              skillId,
+              termId,
+              sessionId,
+              rating,
+              assessedById: staffInfo.staffId!,
+            },
+          });
+        }
+      }
     });
 
     logger.info(
-      { resultId: result.id, studentId, examPaperId },
-      "Manual marks added successfully."
+      { studentId, examPaperId, staffId: staffInfo.staffId },
+      "Manual marks and/or psychomotor assessments added successfully."
     );
 
     res.status(201).json({
       success: true,
-      message: "Marks added successfully.",
-      data: result,
+      message: "Data saved successfully.",
     });
-  } catch (error) {
-    logger.error(error, "Failed to add manual marks");
+  } catch (error: any) {
+    if (
+      error.message.includes("termId and sessionId are required") ||
+      error.message.includes("must include a skillId and a rating")
+    ) {
+      return handleError(res, error.message, 400);
+    }
+    logger.error(error, "Failed to add manual marks and/or psychomotor");
     next(error);
   }
 };

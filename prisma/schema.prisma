@@ -46,6 +46,7 @@ model School {
   email              String
   phone              String[]
   address            String
+  motto              String?
   userSchools        UserSchool[]
   classes            Classes[]
   isActive           Boolean             @default(true)
@@ -208,6 +209,7 @@ model Term {
   session                      Session                        @relation(fields: [sessionId], references: [id])
   start_date                   DateTime
   end_date                     DateTime
+  resumptionDate               DateTime?
   isActive                     Boolean                        @default(false)
   createdAt                    DateTime                       @default(now())
   updatedAt                    DateTime                       @updatedAt

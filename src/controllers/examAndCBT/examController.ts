@@ -59,6 +59,59 @@ export const createExam = async (
 };
 
 /**
+ * Get all Exam Papers for a term/session
+ * @route GET /api/papers/by-term-session
+ */
+export const getExamPapersByTermAndSession = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { termId, sessionId } = req.query;
+
+    if (!termId || !sessionId) {
+      return handleError(
+        res,
+        "termId and sessionId are required query parameters.",
+        400
+      );
+    }
+
+    const papers = await prisma.examPaper.findMany({
+      where: {
+        exam: {
+          termId: termId as string,
+          sessionId: sessionId as string,
+        },
+      },
+      include: {
+        subject: true,
+        exam: {
+          select: {
+            title: true,
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: {
+        paperDate: "asc",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Exam papers fetched successfully.",
+      data: papers,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch exam papers");
+    next(error);
+  }
+};
+
+/**
  * Get Exam Timetable for a class/section
  * @route GET /api/exams/timetable
  */

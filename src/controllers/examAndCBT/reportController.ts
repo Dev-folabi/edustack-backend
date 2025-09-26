@@ -23,9 +23,7 @@ export const generateStudentTermReport = async (
       );
     }
 
-    const student = await prisma.student.findUnique({
-      where: { id: studentId as string },
-    });
+    // 1. Fetch primary data: Student and their enrollment for the specified term
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: {
         studentId: studentId as string,
@@ -33,22 +31,36 @@ export const generateStudentTermReport = async (
         sessionId: sessionId as string,
       },
       include: {
-        class: { select: { name: true, schoolId: true } },
-        section: { select: { name: true } },
+        student: true,
+        class: { include: { school: true } },
+        section: true,
+        term: true,
+        session: true,
       },
     });
 
-    if (!student || !enrollment) {
+    if (!enrollment) {
       return handleError(
         res,
-        "Student or their enrollment for the specified term not found.",
+        "Student enrollment for the specified term not found.",
         404
       );
     }
 
-    const schoolId = enrollment.class.schoolId;
+    const { student, class: studentClass, section, term, session } = enrollment;
+    const { school } = studentClass;
 
-    const [results, psychomotorAssessments, gradeCriteria] = await Promise.all([
+    // 2. Fetch all supplementary data in parallel
+    const [
+      results,
+      psychomotorAssessments,
+      gradeCriteria,
+      attendanceCounts,
+      classSize,
+      schoolBills,
+      schoolDays,
+    ] = await Promise.all([
+      // Academic results
       prisma.result.findMany({
         where: {
           studentId: studentId as string,
@@ -58,11 +70,18 @@ export const generateStudentTermReport = async (
           isPublished: true,
         },
         include: {
-          examPaper: { include: { subject: true } },
+          examPaper: {
+            include: {
+              subject: true,
+              exam: { select: { title: true, startDate: true } },
+            },
+          },
         },
+        orderBy: { examPaper: { exam: { startDate: "asc" } } },
       }),
+      // Affective traits / Psychomotor skills
       prisma.psychomotorSkill.findMany({
-        where: { schoolId },
+        where: { schoolId: school.id },
         include: {
           assessments: {
             where: {
@@ -73,64 +92,160 @@ export const generateStudentTermReport = async (
           },
         },
       }),
-      prisma.gradeCriteria.findMany({ where: { schoolId } }),
+      // School's grading criteria
+      prisma.gradeCriteria.findMany({ where: { schoolId: school.id } }),
+      // Student's attendance record for the term
+      prisma.attendance.groupBy({
+        by: ["status"],
+        where: {
+          studentId: studentId as string,
+          date: { gte: term.start_date, lte: term.end_date },
+        },
+        _count: { status: true },
+      }),
+      // Total number of students in the class
+      prisma.studentEnrollment.count({
+        where: {
+          classId: studentClass.id,
+          sectionId: section.id,
+          sessionId: sessionId as string,
+        },
+      }),
+      // Student's financial records for the term
+      prisma.studentInvoice.findMany({
+        where: {
+          studentId: studentId as string,
+          invoice: { termId: termId as string, sessionId: sessionId as string },
+        },
+        include: { invoice: { include: { invoiceItems: true } } },
+      }),
+      // Total number of school days in the term
+      prisma.attendance.count({
+        where: {
+          sectionId: section.id,
+          date: { gte: term.start_date, lte: term.end_date },
+        },
+        distinct: ["date"],
+      }),
     ]);
 
-    let totalMarksObtained = 0;
-    let totalMaxMarks = 0;
+    // 3. Process the fetched data
 
-    const processedResults = results.map((result) => {
-      totalMarksObtained += result.marksObtained;
-      totalMaxMarks += result.examPaper.maxMarks;
-      const percentage =
-        result.examPaper.maxMarks > 0
-          ? (result.marksObtained / result.examPaper.maxMarks) * 100
-          : 0;
-      const grade = gradeCriteria.find(
-        (g) => percentage >= g.minScore && percentage <= g.maxScore
-      );
+    // Process academic results
+    const subjectsMap = new Map();
+    let grandTotalMarksObtained = 0;
+    let grandTotalMaxMarks = 0;
 
-      return {
-        subject: result.examPaper.subject.name,
-        marksObtained: result.marksObtained,
-        maxMarks: result.examPaper.maxMarks,
-        percentage: parseFloat(percentage.toFixed(2)),
-        grade: grade ? grade.name : "N/A",
-        remark: result.teacherRemark,
-      };
+    results.forEach((result) => {
+      const { subject, exam, maxMarks } = result.examPaper;
+      if (!subjectsMap.has(subject.id)) {
+        subjectsMap.set(subject.id, {
+          name: subject.name,
+          scores: [],
+          total: 0,
+          max: 0,
+        });
+      }
+      const subjectData = subjectsMap.get(subject.id);
+      subjectData.scores.push({
+        title: exam.title,
+        score: result.marksObtained,
+      });
+      subjectData.total += result.marksObtained;
+      subjectData.max += maxMarks;
+      grandTotalMarksObtained += result.marksObtained;
+      grandTotalMaxMarks += maxMarks;
     });
 
-    const overallPercentage =
-      totalMaxMarks > 0 ? (totalMarksObtained / totalMaxMarks) * 100 : 0;
-    const overallGrade = gradeCriteria.find(
-      (g) => overallPercentage >= g.minScore && overallPercentage <= g.maxScore
+    const academicResults = Array.from(subjectsMap.values()).map(
+      (subjectData) => {
+        const percentage =
+          subjectData.max > 0
+            ? (subjectData.total / subjectData.max) * 100
+            : 0;
+        const gradeInfo = gradeCriteria.find(
+          (g) => percentage >= g.minScore && percentage <= g.maxScore
+        );
+        return {
+          ...subjectData,
+          percentage: parseFloat(percentage.toFixed(2)),
+          grade: gradeInfo ? gradeInfo.name : "N/A",
+          remark: gradeInfo ? gradeInfo.remark : "N/A",
+        };
+      }
     );
 
+    const overallPercentage =
+      grandTotalMaxMarks > 0
+        ? (grandTotalMarksObtained / grandTotalMaxMarks) * 100
+        : 0;
+    const overallGrade = gradeCriteria.find(
+      (g) =>
+        overallPercentage >= g.minScore && overallPercentage <= g.maxScore
+    );
+
+    // Process attendance
+    const attendance = {
+      timesSchoolOpened: schoolDays,
+      timesPresent:
+        attendanceCounts.find((a) => a.status === "PRESENT")?._count.status ||
+        0,
+      timesAbsent:
+        attendanceCounts.find((a) => a.status === "ABSENT")?._count.status || 0,
+    };
+
+    // 4. Construct the final report card object
     const reportCard = {
+      schoolInfo: {
+        name: school.name,
+        address: school.address,
+        phone: school.phone,
+        email: school.email,
+        motto: school.motto,
+      },
       studentInfo: {
-        id: student.id,
         name: student.name,
         admissionNumber: student.admission_number,
+        class: studentClass.name,
+        section: section.name,
+        gender: student.gender,
+        dob: student.dob,
       },
-      academicInfo: {
-        class: enrollment.class.name,
-        section: enrollment.section.name,
+      termInfo: {
+        session: session.name,
+        term: term.name,
+        timesOpened: attendance.timesSchoolOpened,
+        closingDate: term.end_date,
+        resumptionDate: term.resumptionDate,
+        classSize,
       },
-      results: processedResults,
-      summary: {
-        totalMarksObtained,
-        totalMaxMarks,
-        overallPercentage: parseFloat(overallPercentage.toFixed(2)),
-        overallGrade: overallGrade ? overallGrade.name : "N/A",
+      performance: {
+        academic: academicResults,
+        summary: {
+          totalMarks: grandTotalMarksObtained,
+          maxMarks: grandTotalMaxMarks,
+          percentage: parseFloat(overallPercentage.toFixed(2)),
+          grade: overallGrade ? overallGrade.name : "N/A",
+        },
       },
-      psychomotor: psychomotorAssessments.map((skill) => ({
+      attendance: {
+        present: attendance.timesPresent,
+        absent: attendance.timesAbsent,
+      },
+      affectiveTraits: psychomotorAssessments.map((skill) => ({
         name: skill.name,
         rating:
           skill.assessments.length > 0 ? skill.assessments[0].rating : null,
       })),
+      schoolBills: schoolBills.flatMap((sb) =>
+        sb.invoice.invoiceItems.map((item) => ({
+          name: item.description,
+          amount: item.amount,
+        }))
+      ),
       remarks: {
-        classTeacher: enrollment.classTeacherRemark,
-        schoolHead: enrollment.schoolHeadRemark,
+        teacher: enrollment.classTeacherRemark,
+        principal: enrollment.schoolHeadRemark,
       },
     };
 

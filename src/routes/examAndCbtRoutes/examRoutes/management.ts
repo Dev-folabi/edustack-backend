@@ -15,6 +15,7 @@ import {
   getExamTimetable,
   getStudentExams,
   getExamPaperById,
+  getExamPapersByTermAndSession,
 } from "../../../controllers/examAndCBT/examController";
 import {
   PARENT_ROLES,
@@ -33,6 +34,12 @@ router.post("/", roleAuthorization([...TEACHER_ROLES]), createExam);
 router.get("/student/:studentId", getStudentExams);
 
 router.get("/", getExams);
+
+router.get(
+  "/papers/by-term-session",
+  roleAuthorization([...TEACHER_ROLES]),
+  getExamPapersByTermAndSession
+);
 
 router.get("/timetable/view", getExamTimetable);
 
