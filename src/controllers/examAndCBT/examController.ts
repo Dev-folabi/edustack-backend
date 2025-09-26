@@ -573,3 +573,163 @@ export const deleteExam = async (
     next(error);
   }
 };
+
+/**
+ * Get Exam for a student
+ * @route GET /api/students/:studentId/exams
+ */
+export const getStudentExams = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { studentId } = req.params;
+    const { sessionId, termId } = req.query;
+
+    if (!studentId || !sessionId ) {
+      return handleError(
+        res,
+        "studentId, sessionId, and termId are required.",
+        400
+      );
+    }
+
+    const studentEnrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        studentId: studentId as string,
+        sessionId: sessionId as string,
+      },
+      select: {
+        classId: true,
+        sectionId: true,
+      },
+    });
+
+    if (!studentEnrollment) {
+      return handleError(
+        res,
+        "Student not enrolled in the specified session and term.",
+        404
+      );
+    }
+
+    const studentExams = await prisma.exam.findMany({
+      where: {
+        classId: studentEnrollment.classId,
+        ...(studentEnrollment.sectionId && {
+          sectionId: studentEnrollment.sectionId,
+        }),
+        sessionId: sessionId as string,
+        termId: termId as string,
+      },
+      include: {
+        papers: {
+          include: {
+            subject: true,
+            attempts: {
+              where: {
+                studentId: studentId as string,
+              },
+              include: {
+                responses: true,
+              },
+            },
+          },
+        },
+        school: {
+          select: {
+            name: true,
+          },
+        },
+        class: {
+          select: {
+            name: true,
+          },
+        },
+        section: {
+          select: {
+            name: true,
+          },
+        },
+        term: {
+          select: {
+            name: true,
+          },
+        },
+        session: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        startDate: "asc",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Student exams fetched successfully.",
+      data: studentExams,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch student exams");
+    next(error);
+  }
+};
+
+/**
+ * Get a single Exam Paper by ID
+ * @route GET /api/exams/:examId/papers/:paperId
+ */
+export const getExamPaperById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { paperId } = req.params;
+
+    if (!paperId) {
+      return handleError(res, "Exam paper ID is required.", 400);
+    }
+
+    const examPaper = await prisma.examPaper.findUnique({
+      where: { id: paperId },
+      include: {
+        subject: true,
+        exam: {
+          select: {
+            title: true,
+            startDate: true,
+            endDate: true,
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+            term: { select: { name: true } },
+            session: { select: { name: true } },
+          },
+        },
+        questionBank: {
+          select: {
+            name: true,
+            description: true,
+          },
+        },
+      },
+    });
+
+    if (!examPaper) {
+      return handleError(res, "Exam paper not found.", 404);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Exam paper fetched successfully.",
+      data: examPaper,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch exam paper by ID");
+    next(error);
+  }
+};

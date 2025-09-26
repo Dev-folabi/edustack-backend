@@ -51,9 +51,9 @@ export const startExamAttempt = async (
     }
 
     const now = new Date();
-    if (now < examPaper.startTime || now > examPaper.endTime) {
-      return handleError(res, "This exam is not currently active.", 400);
-    }
+    // if (now < examPaper.startTime || now > examPaper.endTime) {
+    //   return handleError(res, "This exam is not currently active.", 400);
+    // }
 
     let attempt = await prisma.examAttempt.findUnique({
       where: { examPaperId_studentId: { examPaperId, studentId } },
@@ -104,6 +104,7 @@ export const startExamAttempt = async (
       success: true,
       message: "Exam attempt started successfully.",
       data: {
+        examPaper,
         attempt,
         questions,
       },
@@ -209,7 +210,7 @@ export const submitExamAttempt = async (
 
     res.status(200).json({
       success: true,
-      message: "Exam submitted successfully. It has been auto-graded.",
+      message: "Exam submitted successfully.",
       data: {
         attemptId,
         totalScore,
