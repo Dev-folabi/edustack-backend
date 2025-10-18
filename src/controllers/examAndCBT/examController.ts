@@ -26,7 +26,12 @@ export const createExam = async (
       termId,
       sessionId,
       schoolId,
+      status,
     } = req.body;
+
+    if (status && !["Draft", "Scheduled"].includes(status)) {
+      return handleError(res, "Invalid status provided. Must be 'Draft' or 'Scheduled'.", 400);
+    }
 
     const newExam = await prisma.exam.create({
       data: {
@@ -38,6 +43,7 @@ export const createExam = async (
         termId,
         sessionId,
         schoolId,
+        ...(status && { status }),
         ...(staffInfo.role === "STAFF" && { createdById: staffInfo.staffId! }),
       },
     });
@@ -72,7 +78,7 @@ export const updateExamStatus = async (
     const { status } = req.body;
 
     // Validate status
-    if (!["Draft", "Scheduled", "Cancelled"].includes(status)) {
+    if (!["Draft", "Scheduled", "Cancelled", "Ongoing"].includes(status)) {
       return handleError(res, "Invalid status provided.", 400);
     }
 
@@ -82,11 +88,34 @@ export const updateExamStatus = async (
       return handleError(res, "Exam not found.", 404);
     }
 
-    // Add any business logic checks here, e.g., preventing status changes for ongoing/completed exams
-    if (exam.status === "Ongoing" || exam.status === "Completed") {
+    const currentStatus = exam.status;
+
+    // Business logic for status transitions
+    if (currentStatus === "Ongoing") {
       return handleError(
         res,
-        `Cannot change status of an exam that is ${exam.status}.`,
+        "Cannot manually change status of an Ongoing exam.",
+        400
+      );
+    }
+    if (currentStatus === "Scheduled" && status === "Draft") {
+      return handleError(
+        res,
+        "Cannot change status of a Scheduled exam back to Draft.",
+        400
+      );
+    }
+    if (currentStatus === "Completed" && status !== "Ongoing") {
+      return handleError(
+        res,
+        "Can only change status of a Completed exam to Ongoing.",
+        400
+      );
+    }
+    if (status === "Ongoing" && currentStatus !== "Completed") {
+      return handleError(
+        res,
+        `Cannot manually change status to Ongoing from ${currentStatus}.`,
         400
       );
     }
