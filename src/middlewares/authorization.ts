@@ -24,7 +24,11 @@ const handleError = (res: Response, status: number, message: string) => {
  * @param roles - An array of `PrismaUserRole` to check against.
  * @returns True if the user has one of the specified roles in the school, false otherwise or on error.
  */
-const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRole[]): Promise<boolean> => {
+const hasAnyRole = async (
+  userId: string,
+  schoolId: string,
+  roles: PrismaUserRole[]
+): Promise<boolean> => {
   if (!userId || !schoolId || roles.length === 0) {
     return false;
   }
@@ -34,13 +38,18 @@ const hasAnyRole = async (userId: string, schoolId: string, roles: PrismaUserRol
         userId_schoolId: {
           userId,
           schoolId,
-        }
+        },
       },
-      select: { role: true }
+      select: { role: true },
     });
-    return (userSchoolLink?.role && roles.includes(userSchoolLink.role)) || false;
+    return (
+      (userSchoolLink?.role && roles.includes(userSchoolLink.role)) || false
+    );
   } catch (error) {
-    logger.error({ err: error, userId, schoolId, roles }, "Error in hasAnyRole check");
+    logger.error(
+      { err: error, userId, schoolId, roles },
+      "Error in hasAnyRole check"
+    );
     return false;
   }
 };
@@ -68,22 +77,39 @@ export const verifyToken = async (
 
     // JTI (JWT ID) is essential for revocation checks.
     if (!decodedToken.jti) {
-      logger.error({ userId: decodedToken.id, path: req.path }, "Token missing JTI in verifyToken");
-      return handleError(res, 401, "Token format unacceptable for revocation check.");
+      logger.error(
+        { userId: decodedToken.id, path: req.path },
+        "Token missing JTI in verifyToken"
+      );
+      return handleError(
+        res,
+        401,
+        "Token format unacceptable for revocation check."
+      );
     }
 
     // Check if the token's JTI is in the denylist (e.g., after logout).
     const isRevoked = await isTokenDenylisted(decodedToken.jti);
     if (isRevoked) {
-      logger.warn({ jti: decodedToken.jti, userId: decodedToken.id, path: req.path }, "Revoked token usage attempt in verifyToken");
+      logger.warn(
+        { jti: decodedToken.jti, userId: decodedToken.id, path: req.path },
+        "Revoked token usage attempt in verifyToken"
+      );
       return handleError(res, 401, "Token has been revoked.");
     }
 
     // IAT (Issued At) claim is essential for password change validation.
     const tokenIssuedAt = (decodedToken as any).iat;
-    if (!tokenIssuedAt || typeof tokenIssuedAt !== 'number') {
-        logger.error({ userId: decodedToken.id, path: req.path }, "Token missing IAT in verifyToken");
-        return handleError(res, 401, "Token format unacceptable for timestamp check.");
+    if (!tokenIssuedAt || typeof tokenIssuedAt !== "number") {
+      logger.error(
+        { userId: decodedToken.id, path: req.path },
+        "Token missing IAT in verifyToken"
+      );
+      return handleError(
+        res,
+        401,
+        "Token format unacceptable for timestamp check."
+      );
     }
 
     // Fetch user's passwordChangedAt timestamp to invalidate old tokens.
@@ -93,20 +119,37 @@ export const verifyToken = async (
     });
 
     if (!userProfile) {
-      logger.warn({ userId: decodedToken.id, path: req.path }, "User profile not found for token in verifyToken");
+      logger.warn(
+        { userId: decodedToken.id, path: req.path },
+        "User profile not found for token in verifyToken"
+      );
       return handleError(res, 401, "User profile not found for token.");
     }
 
     // If passwordChangedAt exists and the token was issued before this time, invalidate it.
-    if (userProfile.passwordChangedAt && (tokenIssuedAt < Math.floor(userProfile.passwordChangedAt.getTime() / 1000))) {
-      logger.warn({ userId: decodedToken.id, path: req.path, token_iat: tokenIssuedAt, pwd_changed: userProfile.passwordChangedAt }, "Token invalidated due to password change in verifyToken");
+    if (
+      userProfile.passwordChangedAt &&
+      tokenIssuedAt < Math.floor(userProfile.passwordChangedAt.getTime() / 1000)
+    ) {
+      logger.warn(
+        {
+          userId: decodedToken.id,
+          path: req.path,
+          token_iat: tokenIssuedAt,
+          pwd_changed: userProfile.passwordChangedAt,
+        },
+        "Token invalidated due to password change in verifyToken"
+      );
       return handleError(res, 401, "Token invalidated due to password change.");
     }
 
     (req as any).user = decodedToken.id;
     next();
   } catch (error: any) {
-    logger.error({ err: error, path: req.path }, "Error in verifyToken middleware");
+    logger.error(
+      { err: error, path: req.path },
+      "Error in verifyToken middleware"
+    );
     next(error);
   }
 };
@@ -132,20 +175,37 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
       }
 
       if (!decodedToken.jti) {
-        logger.error({ userId: decodedToken.id, path: req.path }, "Token missing JTI in roleAuthorization");
-        return handleError(res, 401, "Token format unacceptable for revocation check.");
+        logger.error(
+          { userId: decodedToken.id, path: req.path },
+          "Token missing JTI in roleAuthorization"
+        );
+        return handleError(
+          res,
+          401,
+          "Token format unacceptable for revocation check."
+        );
       }
 
       const isRevoked = await isTokenDenylisted(decodedToken.jti);
       if (isRevoked) {
-        logger.warn({ jti: decodedToken.jti, userId: decodedToken.id, path: req.path }, "Revoked token usage attempt in roleAuthorization");
+        logger.warn(
+          { jti: decodedToken.jti, userId: decodedToken.id, path: req.path },
+          "Revoked token usage attempt in roleAuthorization"
+        );
         return handleError(res, 401, "Token has been revoked.");
       }
 
       const tokenIssuedAt = (decodedToken as any).iat;
-      if (!tokenIssuedAt || typeof tokenIssuedAt !== 'number') {
-        logger.error({ userId: decodedToken.id, path: req.path }, "Token missing IAT in roleAuthorization");
-        return handleError(res, 401, "Token format unacceptable for timestamp check.");
+      if (!tokenIssuedAt || typeof tokenIssuedAt !== "number") {
+        logger.error(
+          { userId: decodedToken.id, path: req.path },
+          "Token missing IAT in roleAuthorization"
+        );
+        return handleError(
+          res,
+          401,
+          "Token format unacceptable for timestamp check."
+        );
       }
 
       const userId = decodedToken.id;
@@ -155,13 +215,31 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
       });
 
       if (!user) {
-        logger.warn({ userId, path: req.path }, "User associated with token not found in roleAuthorization");
+        logger.warn(
+          { userId, path: req.path },
+          "User associated with token not found in roleAuthorization"
+        );
         return handleError(res, 404, "User associated with token not found.");
       }
 
-      if (user.passwordChangedAt && (tokenIssuedAt < Math.floor(user.passwordChangedAt.getTime() / 1000))) {
-        logger.warn({ userId, path: req.path, token_iat: tokenIssuedAt, pwd_changed: user.passwordChangedAt }, "Token invalidated due to password change in roleAuthorization");
-        return handleError(res, 401, "Token invalidated due to password change.");
+      if (
+        user.passwordChangedAt &&
+        tokenIssuedAt < Math.floor(user.passwordChangedAt.getTime() / 1000)
+      ) {
+        logger.warn(
+          {
+            userId,
+            path: req.path,
+            token_iat: tokenIssuedAt,
+            pwd_changed: user.passwordChangedAt,
+          },
+          "Token invalidated due to password change in roleAuthorization"
+        );
+        return handleError(
+          res,
+          401,
+          "Token invalidated due to password change."
+        );
       }
 
       // Super admin bypasses school-specific and listed role checks.
@@ -170,32 +248,63 @@ export const roleAuthorization = (roles: PrismaUserRole[]) => {
         return next();
       }
 
-  
       if (roles.length > 0) {
         let schoolId: string | undefined = undefined;
-        if (req.params && req.params.schoolId) schoolId = req.params.schoolId;
+        if (req.headers["x-school-id"])
+          schoolId = req.headers["x-school-id"] as string;
+        else if (req.params && req.params.schoolId)
+          schoolId = req.params.schoolId;
         else if (req.body && req.body.schoolId) schoolId = req.body.schoolId;
-        else if (req.query && req.query.schoolId) schoolId = String(req.query.schoolId);
+        else if (req.query && req.query.schoolId)
+          schoolId = String(req.query.schoolId);
 
         if (!schoolId) {
-          logger.warn({ userId, path: req.path, rolesChecked: roles }, "School ID missing for role-based action in roleAuthorization");
-          return handleError(res, 400, "School ID is required for this action.");
+          logger.warn(
+            { userId, path: req.path, rolesChecked: roles },
+            "School ID missing for role-based action in roleAuthorization"
+          );
+          return handleError(
+            res,
+            400,
+            "School ID is required for this action."
+          );
         }
 
-        const isAuthorizedBySchoolRole = await hasAnyRole(userId, schoolId, roles);
+        const isAuthorizedBySchoolRole = await hasAnyRole(
+          userId,
+          schoolId,
+          roles
+        );
         if (!isAuthorizedBySchoolRole) {
-          logger.warn({ userId, schoolId, rolesChecked: roles, path: req.path }, "User not authorized for action in school context in roleAuthorization");
-          return handleError(res, 403, "You are not authorized to perform this action in this school.");
+          logger.warn(
+            { userId, schoolId, rolesChecked: roles, path: req.path },
+            "User not authorized for action in school context in roleAuthorization"
+          );
+          return handleError(
+            res,
+            403,
+            "You are not authorized to perform this action in this school."
+          );
         }
       } else {
-        logger.warn({ userId, path: req.path }, "Non-super_admin denied access due to empty roles array in roleAuthorization");
-        return handleError(res, 403, "You are not authorized to perform this action.");
+        logger.warn(
+          { userId, path: req.path },
+          "Non-super_admin denied access due to empty roles array in roleAuthorization"
+        );
+        return handleError(
+          res,
+          403,
+          "You are not authorized to perform this action."
+        );
       }
 
       (req as any).user = user.id;
       next();
     } catch (error: any) {
-      logger.error({ err: error, path: req.path }, "Error in roleAuthorization middleware");
+      logger.error(
+        { err: error, path: req.path },
+        "Error in roleAuthorization middleware"
+      );
       next(error);
     }
   };
@@ -216,15 +325,25 @@ export const secureHeaderValidation = async (
   try {
     const secureHeaderKey = process.env.EDUSTACK_SECURE_HEADER_KEY;
     if (
-      !secureHeaderKey || 
-      req.headers["x-header-secure-key"] !== secureHeaderKey 
+      !secureHeaderKey ||
+      req.headers["x-header-secure-key"] !== secureHeaderKey
     ) {
-      logger.warn({path: req.path, ip: req.ip}, "Secure header validation failed: missing or invalid key.");
+      logger.warn(
+        { path: req.path, ip: req.ip },
+        "Secure header validation failed: missing or invalid key."
+      );
       return handleError(res, 400, "Secure header key is missing or invalid");
     }
     next();
   } catch (error: any) {
-    logger.error({ err: error, path: req.path }, "Unexpected error in secureHeaderValidation");
-    handleError(res, 500, "Internal server error during secure header validation.");
+    logger.error(
+      { err: error, path: req.path },
+      "Unexpected error in secureHeaderValidation"
+    );
+    handleError(
+      res,
+      500,
+      "Internal server error during secure header validation."
+    );
   }
 };

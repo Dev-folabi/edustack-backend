@@ -130,7 +130,7 @@ export interface classSchoolRequest {
 }
 
 export interface TransferStudentRequest {
-  studentId: string[];
+  studentIds: string[];
   fromSchoolId: string;
   toSchoolId: string;
   toClassId: string;
@@ -145,13 +145,14 @@ export interface EnrollStudentRequest {
 }
 
 export interface PromoteStudentRequest {
-  studentId: string[];
+  studentIds: string[];
   fromClassId: string;
   toClassId: string;
   sectionId: string;
   promoteSessionId: string;
   promoteTermId: string;
   promotedBy: string;
+  isGraduate: boolean;
 }
 
 export interface CreateSubjectRequest {
@@ -212,6 +213,15 @@ export interface CreateTimetableRequest {
 
 export interface CreateEntryRequest extends TimetableEntry {
   timetableId: string;
+}
+
+export interface UpdateTimetableRequest {
+  schoolId: string;
+  classId: string;
+  sectionId: string;
+  sessionId: string;
+  termId?: string;
+  status: TimetableStatus;
 }
 
 export interface UpdateEntryRequest {

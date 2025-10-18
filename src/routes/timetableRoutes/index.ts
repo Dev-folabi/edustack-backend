@@ -7,6 +7,7 @@ import {
   createEntry,
   updateEntry,
   deleteEntry,
+  updateTimetable,
 } from "../../controllers/timetableController";
 import {
   validateCreateTimetable,
@@ -24,6 +25,11 @@ router.post(
   roleAuthorization([...TEACHER_ROLES]),
   validateCreateTimetable,
   createTimetable
+);
+router.put(
+  "/:timetableId",
+  roleAuthorization([...TEACHER_ROLES]),
+  updateTimetable
 );
 router.delete(
   "/:timetableId",

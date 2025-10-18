@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
-import { getIdFromToken } from "../../function/token";
 import { getStaffInfoFromRequest } from "../../function/schoolFunctions";
 
 /**
@@ -18,8 +17,21 @@ export const createExam = async (
     const staffInfo = await getStaffInfoFromRequest(req, res);
     if (!staffInfo) return;
 
-    const { title, startDate, endDate, classId, sectionId, termId, sessionId } =
-      req.body;
+    const {
+      title,
+      startDate,
+      endDate,
+      classId,
+      sectionId,
+      termId,
+      sessionId,
+      schoolId,
+      status,
+    } = req.body;
+
+    if (status && !["Draft", "Scheduled"].includes(status)) {
+      return handleError(res, "Invalid status provided. Must be 'Draft' or 'Scheduled'.", 400);
+    }
 
     const newExam = await prisma.exam.create({
       data: {
@@ -30,7 +42,9 @@ export const createExam = async (
         sectionId,
         termId,
         sessionId,
-        createdById: staffInfo.staffId,
+        schoolId,
+        ...(status && { status }),
+        ...(staffInfo.role === "STAFF" && { createdById: staffInfo.staffId! }),
       },
     });
 
@@ -46,6 +60,153 @@ export const createExam = async (
     });
   } catch (error) {
     logger.error(error, "Failed to create exam");
+    next(error);
+  }
+};
+
+/**
+ * Update Exam Status
+ * @route PATCH /api/exams/:id/status
+ */
+export const updateExamStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!["Draft", "Scheduled", "Cancelled", "Ongoing"].includes(status)) {
+      return handleError(res, "Invalid status provided.", 400);
+    }
+
+    const exam = await prisma.exam.findUnique({ where: { id } });
+
+    if (!exam) {
+      return handleError(res, "Exam not found.", 404);
+    }
+
+    const currentStatus = exam.status;
+
+    // Business logic for status transitions
+    if (currentStatus === "Ongoing") {
+      return handleError(
+        res,
+        "Cannot manually change status of an Ongoing exam.",
+        400
+      );
+    }
+    if (currentStatus === "Scheduled" && status === "Draft") {
+      return handleError(
+        res,
+        "Cannot change status of a Scheduled exam back to Draft.",
+        400
+      );
+    }
+    if (currentStatus === "Completed" && status !== "Ongoing") {
+      return handleError(
+        res,
+        "Can only change status of a Completed exam to Ongoing.",
+        400
+      );
+    }
+    if (status === "Ongoing" && currentStatus !== "Completed") {
+      return handleError(
+        res,
+        `Cannot manually change status to Ongoing from ${currentStatus}.`,
+        400
+      );
+    }
+
+    const updatedExam = await prisma.$transaction(async (tx) => {
+      let dataToUpdate: { status: string; endDate?: Date } = { status };
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        dataToUpdate.endDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
+
+      const examUpdate = await tx.exam.update({
+        where: { id },
+        data: dataToUpdate,
+      });
+
+      if (status === "Cancelled") {
+        // Delete associated timetable entries
+        await tx.examTimetable.deleteMany({
+          where: {
+            examPaper: {
+              examId: id,
+            },
+          },
+        });
+      }
+      return examUpdate;
+    });
+
+    logger.info({ examId: updatedExam.id, newStatus: status }, "Exam status updated successfully.");
+
+    res.status(200).json({
+      success: true,
+      message: "Exam status updated successfully.",
+      data: updatedExam,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to update exam status");
+    next(error);
+  }
+};
+
+/**
+ * Get all Exam Papers for a term/session
+ * @route GET /api/papers/by-term-session
+ */
+export const getExamPapersByTermAndSession = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { termId, sessionId } = req.query;
+
+    if (!termId || !sessionId) {
+      return handleError(
+        res,
+        "termId and sessionId are required query parameters.",
+        400
+      );
+    }
+
+    const papers = await prisma.examPaper.findMany({
+      where: {
+        exam: {
+          termId: termId as string,
+          sessionId: sessionId as string,
+        },
+      },
+      include: {
+        subject: true,
+        exam: {
+          select: {
+            title: true,
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: {
+        paperDate: "asc",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Exam papers fetched successfully.",
+      data: papers,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch exam papers");
     next(error);
   }
 };
@@ -84,6 +245,8 @@ export const getExamTimetable = async (
             exam: {
               select: {
                 title: true,
+                startDate: true,
+                endDate: true,
               },
             },
           },
@@ -152,8 +315,8 @@ export const addExamPaper = async (
           startTime: new Date(startTime),
           endTime: new Date(endTime),
           mode,
-          questionBankId,
-          totalQuestions,
+          ...(questionBankId && { questionBankId }),
+          ...(totalQuestions && { totalQuestions }),
         },
       });
 
@@ -222,8 +385,8 @@ export const updateExamPaper = async (
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
         mode,
-        questionBankId,
-        totalQuestions,
+        ...(questionBankId && { questionBankId }),
+        ...(totalQuestions && { totalQuestions }),
       },
     });
 
@@ -301,24 +464,63 @@ export const getExams = async (
   next: NextFunction
 ) => {
   try {
-    const { classId, termId, sessionId } = req.query;
+    const { schoolId, classId, termId, sessionId } = req.query;
 
-    if (!classId || !termId || !sessionId) {
-      return handleError(
-        res,
-        "classId, termId, and sessionId are required query parameters.",
-        400
-      );
+    if (!schoolId) {
+      return handleError(res, "schoolId is required query parameters.", 400);
     }
 
     const exams = await prisma.exam.findMany({
       where: {
-        classId: classId as string,
-        termId: termId as string,
-        sessionId: sessionId as string,
+        schoolId: schoolId as string,
+        ...(classId && { classId: classId as string }),
+        ...(termId && { termId: termId as string }),
+        ...(sessionId && { sessionId: sessionId as string }),
       },
       include: {
-        papers: true,
+        papers: {
+          select: {
+            id: true,
+            subjectId: true,
+            subject: {
+              select: {
+                name: true,
+              },
+            },
+            maxMarks: true,
+            paperDate: true,
+            startTime: true,
+            endTime: true,
+            mode: true,
+            questionBankId: true,
+            totalQuestions: true,
+          },
+        },
+        school: {
+          select: {
+            name: true,
+          },
+        },
+        class: {
+          select: {
+            name: true,
+          },
+        },
+        section: {
+          select: {
+            name: true,
+          },
+        },
+        term: {
+          select: {
+            name: true,
+          },
+        },
+        session: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: {
         startDate: "asc",
@@ -347,12 +549,41 @@ export const getExamById = async (
 ) => {
   try {
     const { id } = req.params;
+    const { studentId } = req.query;
     const exam = await prisma.exam.findUnique({
       where: { id },
       include: {
+        school: {
+          select: {
+            name: true,
+          },
+        },
+        class: {
+          select: {
+            name: true,
+          },
+        },
+        section: {
+          select: {
+            name: true,
+          },
+        },
+        term: {
+          select: {
+            name: true,
+          },
+        },
+        session: {
+          select: {
+            name: true,
+          },
+        },
         papers: {
           include: {
             subject: true,
+            attempts: studentId
+              ? { where: { studentId: studentId as string } }
+              : true,
           },
         },
       },
@@ -384,29 +615,73 @@ export const updateExam = async (
 ) => {
   try {
     const { id } = req.params;
-    const { title, startDate, endDate, status } = req.body;
+    const {
+      title,
+      startDate,
+      endDate,
+      status,
+      schoolId,
+      classId,
+      termId,
+      sessionId,
+    } = req.body;
 
     const exam = await prisma.exam.findUnique({ where: { id } });
     if (!exam) {
       return handleError(res, "Exam not found.", 404);
     }
 
-    if (exam.status === "Ongoing" || exam.status === "Completed") {
-      return handleError(
-        res,
-        `Cannot update exam with status '${exam.status}'.`,
-        400
-      );
+    const currentStatus = exam.status;
+    let newEndDate = endDate ? new Date(endDate) : undefined;
+
+    if (status && status !== currentStatus) {
+      if (currentStatus === "Ongoing") {
+        return handleError(res, "Cannot update status of an Ongoing exam.", 400);
+      }
+      if (currentStatus === "Scheduled" && status === "Draft") {
+        return handleError(res, "Cannot change a Scheduled exam back to Draft.", 400);
+      }
+      if (currentStatus === "Completed" && status !== "Ongoing") {
+        return handleError(res, "Can only change a Completed exam to Ongoing.", 400);
+      }
+      if (status === "Ongoing" && currentStatus !== "Completed") {
+        return handleError(res, `Cannot change status to Ongoing from ${currentStatus}.`, 400);
+      }
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        newEndDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
     }
 
-    const updatedExam = await prisma.exam.update({
-      where: { id },
-      data: {
-        title,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        status,
-      },
+    const updatedExam = await prisma.$transaction(async (tx) => {
+      const examUpdate = await tx.exam.update({
+        where: { id },
+        data: {
+          title,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: newEndDate,
+          schoolId,
+          classId,
+          termId,
+          sessionId,
+          status,
+        },
+      });
+
+      // Update the corresponding examTimetable entries
+      await tx.examTimetable.updateMany({
+        where: {
+          examPaper: {
+            examId: id,
+          },
+        },
+        data: {
+          classId: classId || undefined,
+          termId: termId || undefined,
+          sessionId: sessionId || undefined,
+        },
+      });
+      return examUpdate;
     });
 
     logger.info({ examId: updatedExam.id }, "Exam updated successfully.");
@@ -451,12 +726,10 @@ export const deleteExam = async (
       );
     }
 
-    if (exam.status !== "Draft") {
-      return handleError(
-        res,
-        "Cannot delete an exam that is not in 'Draft' status.",
-        400
-      );
+    if (
+      !["Draft", "Scheduled", "Cancelled"].includes(exam.status as string)
+    ) {
+      return handleError(res, `Cannot delete an ${exam.status} exam.`, 400);
     }
 
     await prisma.exam.delete({
@@ -471,6 +744,232 @@ export const deleteExam = async (
     });
   } catch (error) {
     logger.error(error, "Failed to delete exam");
+    next(error);
+  }
+};
+
+/**
+ * Get Exam for a student
+ * @route GET /api/students/:studentId/exams
+ */
+export const getStudentExams = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { studentId } = req.params;
+    const { sessionId, termId } = req.query;
+
+    if (!studentId || !sessionId) {
+      return handleError(
+        res,
+        "studentId, sessionId, and termId are required.",
+        400
+      );
+    }
+
+    const studentEnrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        studentId: studentId as string,
+        sessionId: sessionId as string,
+      },
+      select: {
+        classId: true,
+        sectionId: true,
+      },
+    });
+
+    if (!studentEnrollment) {
+      return handleError(
+        res,
+        "Student not enrolled in the specified session and term.",
+        404
+      );
+    }
+
+    const studentExams = await prisma.exam.findMany({
+      where: {
+        classId: studentEnrollment.classId,
+        ...(studentEnrollment.sectionId && {
+          sectionId: studentEnrollment.sectionId,
+        }),
+        sessionId: sessionId as string,
+        termId: termId as string,
+        status: {
+          not: "Draft",
+        },
+      },
+      include: {
+        papers: {
+          include: {
+            subject: true,
+            attempts: {
+              where: {
+                studentId: studentId as string,
+              },
+              include: {
+                responses: true,
+              },
+            },
+          },
+        },
+        school: {
+          select: {
+            name: true,
+          },
+        },
+        class: {
+          select: {
+            name: true,
+          },
+        },
+        section: {
+          select: {
+            name: true,
+          },
+        },
+        term: {
+          select: {
+            name: true,
+          },
+        },
+        session: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        startDate: "asc",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Student exams fetched successfully.",
+      data: studentExams,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch student exams");
+    next(error);
+  }
+};
+
+/**
+ * Get a single Exam Paper by ID
+ * @route GET /api/exams/:examId/papers/:paperId
+ */
+export const getExamPaperById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { paperId } = req.params;
+
+    if (!paperId) {
+      return handleError(res, "Exam paper ID is required.", 400);
+    }
+
+    const examPaper = await prisma.examPaper.findUnique({
+      where: { id: paperId },
+      include: {
+        subject: true,
+        attempts: {
+          where: {
+            examPaperId: paperId,
+          },
+          include: {
+            responses: true,
+          },
+        },
+        exam: {
+          select: {
+            title: true,
+            startDate: true,
+            endDate: true,
+            class: { select: { id: true, name: true } },
+            section: { select: { id: true, name: true } },
+            term: { select: { id: true, name: true } },
+            session: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!examPaper) {
+      return handleError(res, "Exam paper not found.", 404);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Exam paper fetched successfully.",
+      data: examPaper,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch exam paper by ID");
+    next(error);
+  }
+};
+
+/**
+ * Get all Exam Papers with optional term and section query
+ * @route GET /api/exams/papers
+ */
+export const getAllExamPapers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { termId, schoolId, sectionId } = req.query;
+
+    const where: any = {};
+    if (termId) {
+      where.exam = {
+        termId: termId as string,
+      };
+    }
+    if (schoolId) {
+      where.exam = {
+        ...where.exam,
+        schoolId: schoolId as string,
+      };
+    }
+
+    if (sectionId) {
+      where.exam = {
+        ...where.exam,
+        sectionId: sectionId as string,
+      };
+    }
+
+    const examPapers = await prisma.examPaper.findMany({
+      where,
+      include: {
+        subject: true,
+        exam: {
+          select: {
+            title: true,
+            startDate: true,
+            endDate: true,
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+            term: { select: { name: true } },
+            session: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Exam papers fetched successfully.",
+      data: examPapers,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch all exam papers");
     next(error);
   }
 };

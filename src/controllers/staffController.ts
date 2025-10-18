@@ -20,7 +20,7 @@ export const getStaffsBySchool = async (
     const limit = Math.max(parseInt(req.query?.limit as string, 10) || 10, 1);
 
     const { schoolId } = req.params;
-    const { role } = req.query;
+    const { role, isActive } = req.query;
 
     const school = await validateSchool(String(schoolId));
     if (!school) {
@@ -28,11 +28,14 @@ export const getStaffsBySchool = async (
     }
 
     const whereFilter: any = {
-      schoolId: schoolId,
+      schoolId,
       user: {
-        staff: { isNot: null },
-      },
+        staff: isActive === 'true' 
+          ? { isActive: true }
+          : { isNot: null }
+      }
     };
+
     if (role) {
       whereFilter.role = role;
     }

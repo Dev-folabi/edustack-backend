@@ -1094,9 +1094,38 @@ export const validateUpdateClass = [
   handleValidationErrors,
 ];
 
+// Validation rules for updating a section
+export const validateUpdateSection = [
+  param("id")
+    .notEmpty()
+    .withMessage("Section ID is required")
+    .isString()
+    .withMessage("Section ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Section ID max length is 50"),
+  body("name")
+    .optional()
+    .isString()
+    .withMessage("Section name must be a string")
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Section name must be between 1 and 50 characters")
+    .matches(/^[a-zA-Z0-9\s_.-]+$/)
+    .withMessage(
+      "Section name can only contain alphanumeric characters, spaces, underscores, dots, or hyphens"
+    ),
+  body("teacherId")
+    .optional()
+    .isString()
+    .withMessage("Teacher ID must be a string")
+    .isLength({ max: 50 })
+    .withMessage("Teacher ID max length is 50"),
+
+  handleValidationErrors,
+];
+
 // Validation rules for transferring a student.
 export const validateTransferStudent = [
-  body("studentId")
+  body("studentIds")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
     .isArray({ min: 1 })
@@ -1146,7 +1175,7 @@ export const validateTransferStudent = [
 
 // Validation for promoting student(s).
 export const validatePromoteStudent = [
-  body("studentId")
+  body("studentIds")
     .notEmpty()
     .withMessage("Student ID(s) are required.")
     .isArray({ min: 1 })
@@ -1164,6 +1193,12 @@ export const validatePromoteStudent = [
       }
       return true;
     }),
+  body("isGraduate")
+    .notEmpty()
+    .withMessage("isGraduate is required")
+    .isBoolean()
+    .withMessage("isGraduate must be a boolean"),
+
   body("fromClassId")
     .optional()
     .isString()
@@ -1171,33 +1206,41 @@ export const validatePromoteStudent = [
     .isLength({ max: 50 })
     .withMessage("From class ID max length is 50"),
   body("toClassId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("To class ID is required")
     .isString()
     .withMessage("To class ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("To class ID max length is 50"),
+    .withMessage("To class ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("sectionId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
-    .withMessage("Target Section ID is required")
+    .withMessage("Target Section ID is required") 
     .isString()
     .withMessage("Section ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Section ID max length is 50"),
+    .withMessage("Section ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("promoteSessionId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("Promote session ID is required")
     .isString()
     .withMessage("Promote session ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Promote session ID max length is 50"),
+    .withMessage("Promote session ID max length is 50")
+    .optional({ checkFalsy: true }),
   body("promoteTermId")
+    .if(body("isGraduate").equals("false"))
     .notEmpty()
     .withMessage("Promote term ID is required")
     .isString()
     .withMessage("Promote term ID must be a string")
     .isLength({ max: 50 })
-    .withMessage("Promote term ID max length is 50"),
+    .withMessage("Promote term ID max length is 50")
+    .optional({ checkFalsy: true }),
   handleValidationErrors,
 ];
 
@@ -1440,21 +1483,6 @@ export const validateGetSubjects = [
 ];
 
 export const validateUpdateSubjects = [
-  body("id")
-    .isArray()
-    .withMessage("id must be an array of strings")
-    .custom((value: string[]) => {
-      if (!value.length) {
-        throw new Error("At least one subject ID is required");
-      }
-      if (!value.every((id) => typeof id === "string" && id.length <= 50)) {
-        throw new Error(
-          "All subject IDs must be valid strings with max length 50"
-        );
-      }
-      return true;
-    }),
-
   body("name")
     .optional()
     .isString()
@@ -1631,13 +1659,13 @@ export const validateCreateEntry = [
     .withMessage("Day must be an array")
     .custom((value: string[]) => {
       const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+        "SUNDAY",
       ];
       if (!value.every((v) => typeof v === "string")) {
         throw new Error("All days must be strings");
@@ -1696,13 +1724,13 @@ export const validateUpdateEntry = [
     .withMessage("Day must be an array")
     .custom((value: string[]) => {
       const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+        "SUNDAY",
       ];
       if (!value.every((day) => validDays.includes(day))) {
         throw new Error(`Days must be one of: ${validDays.join(", ")}`);

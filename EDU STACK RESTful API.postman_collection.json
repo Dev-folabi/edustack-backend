@@ -8398,119 +8398,42 @@
         {
           "name": "Results Management",
           "item": [
-            {
-              "name": "Add Manual Marks",
+           {
+              "name": "Add Manual Marks and Psychomotor",
               "request": {
                 "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"examPaperId\": \"clxkzjwz3000tl0v8g1h3f7ey\",\n    \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n    \"totalScore\": 85,\n    \"remarks\": \"Good performance\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
+                  "raw": "{\n    \"studentId\": \"your_student_id\",\n    \"examPaperId\": \"your_exam_paper_id\",\n    \"marksObtained\": 85,\n    \"teacherRemark\": \"Good effort\",\n    \"termId\": \"your_term_id\",\n    \"sessionId\": \"your_session_id\",\n    \"psychomotorAssessments\": [\n        { \"skillId\": \"punctuality_skill_id\", \"rating\": 5 },\n        { \"skillId\": \"honesty_skill_id\", \"rating\": 4 }\n    ]\n}",
+                  "options": { "raw": { "language": "json" } }
                 },
                 "url": {
-                  "raw": "{{auth_url}}/api/exam/results/manual-entry",
-                  "host": [
-                    "{{auth_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "exam",
-                    "results",
-                    "manual-entry"
+                  "raw": "{{auth_url}}/api/results/manual-entry",
+                  "host": ["{{auth_url}}"],
+                  "path": ["api", "results", "manual-entry"]
+                },
+                "description": "Adds manual marks for a paper-based test and can optionally include psychomotor/affective trait assessments for the student in the same request. Requires Teacher role."
+              },
+              "response": []
+            },
+             {
+              "name": "Get Student Exam Attempt Details",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{auth_url}}/api/results/attempts/:attemptId/student/:studentId",
+                  "host": ["{{auth_url}}"],
+                  "path": ["api", "results", "attempts", ":attemptId", "student", ":studentId"],
+                  "variable": [
+                    { "key": "attemptId", "value": "your_attempt_id" },
+                    { "key": "studentId", "value": "your_student_id" }
                   ]
                 },
-                "description": "Adds manual marks for paper-based tests. Requires teacher role."
+                "description": "Gets the full details of a single exam attempt, including the student's answers and correct answers. Accessible by Students (own attempts), Teachers, and Admins."
               },
-              "response": [
-                {
-                  "name": "Success",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n    \"examPaperId\": \"clxkzjwz3000tl0v8g1h3f7ey\",\n    \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n    \"totalScore\": 85,\n    \"remarks\": \"Good performance\"\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    },
-                    "url": {
-                      "raw": "{{auth_url}}/api/exam/results/manual-entry",
-                      "host": [
-                        "{{auth_url}}"
-                      ],
-                      "path": [
-                        "api",
-                        "exam",
-                        "results",
-                        "manual-entry"
-                      ]
-                    }
-                  },
-                  "status": "Created",
-                  "code": 201,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n    \"success\": true,\n    \"message\": \"Marks added successfully\",\n    \"data\": {\n        \"id\": \"clxkzjwz4000xl0v8g1h3f7f4\",\n        \"examPaperId\": \"clxkzjwz3000tl0v8g1h3f7ey\",\n        \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n        \"totalScore\": 85,\n        \"remarks\": \"Good performance\"\n    }\n}"
-                },
-                {
-                  "name": "Error - Invalid Input",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n    \"examPaperId\": \"\",\n    \"studentId\": \"\",\n    \"totalScore\": null\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    },
-                    "url": {
-                      "raw": "{{auth_url}}/api/exam/results/manual-entry",
-                      "host": [
-                        "{{auth_url}}"
-                      ],
-                      "path": [
-                        "api",
-                        "exam",
-                        "results",
-                        "manual-entry"
-                      ]
-                    }
-                  },
-                  "status": "Bad Request",
-                  "code": 400,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n    \"success\": false,\n    \"message\": \"Exam paper ID is required\"\n}"
-                }
-              ]
+              "response": []
             },
             {
               "name": "Get Essay Responses for Grading",
@@ -9242,43 +9165,22 @@
         {
           "name": "Reports",
           "item": [
-            {
-              "name": "Generate Student Term Report",
+             {
+              "name": "Generate Enhanced Student Term Report",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{auth_url}}/api/exam/reports/student-term-report?studentId=clxkzjwz0000al0v8g1h3f7ef&termId=clxkzjwxk000al0v8g1h3f7ef&sessionId=clxkzjwxk0009l0v8g1h3f7ee",
-                  "host": [
-                    "{{auth_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "exam",
-                    "reports",
-                    "student-term-report"
-                  ],
+                  "raw": "{{auth_url}}/api/reports/student-term-report?studentId=your_student_id&termId=your_term_id&sessionId=your_session_id",
+                  "host": ["{{auth_url}}"],
+                  "path": ["api", "reports", "student-term-report"],
                   "query": [
-                    {
-                      "key": "studentId",
-                      "value": "clxkzjwz0000al0v8g1h3f7ef"
-                    },
-                    {
-                      "key": "termId",
-                      "value": "clxkzjwxk000al0v8g1h3f7ef"
-                    },
-                    {
-                      "key": "sessionId",
-                      "value": "clxkzjwxk0009l0v8g1h3f7ee"
-                    },
-                    {
-                      "key": "format",
-                      "value": "pdf",
-                      "disabled": true
-                    }
+                    { "key": "studentId", "value": "your_student_id" },
+                    { "key": "termId", "value": "your_term_id" },
+                    { "key": "sessionId", "value": "your_session_id" }
                   ]
                 },
-                "description": "Generates a student term report."
+                "description": "Generates a comprehensive, detailed report card for a single student for a specific term, matching the format of the sample image."
               },
               "response": [
                 {
@@ -9287,87 +9189,22 @@
                     "method": "GET",
                     "header": [],
                     "url": {
-                      "raw": "{{auth_url}}/api/exam/reports/student-term-report?studentId=clxkzjwz0000al0v8g1h3f7ef&termId=clxkzjwxk000al0v8g1h3f7ef&sessionId=clxkzjwxk0009l0v8g1h3f7ee",
-                      "host": [
-                        "{{auth_url}}"
-                      ],
-                      "path": [
-                        "api",
-                        "exam",
-                        "reports",
-                        "student-term-report"
-                      ],
+                      "raw": "{{auth_url}}/api/reports/student-term-report?studentId=your_student_id&termId=your_term_id&sessionId=your_session_id",
+                      "host": ["{{auth_url}}"],
+                      "path": ["api", "reports", "student-term-report"],
                       "query": [
-                        {
-                          "key": "studentId",
-                          "value": "clxkzjwz0000al0v8g1h3f7ef"
-                        },
-                        {
-                          "key": "termId",
-                          "value": "clxkzjwxk000al0v8g1h3f7ef"
-                        },
-                        {
-                          "key": "sessionId",
-                          "value": "clxkzjwxk0009l0v8g1h3f7ee"
-                        }
+                        { "key": "studentId", "value": "your_student_id" },
+                        { "key": "termId", "value": "your_term_id" },
+                        { "key": "sessionId", "value": "your_session_id" }
                       ]
                     }
                   },
                   "status": "OK",
                   "code": 200,
                   "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
                   "cookie": [],
-                  "body": "{\n    \"success\": true,\n    \"message\": \"Student term report generated successfully\",\n    \"data\": {\n        \"student\": {\n            \"name\": \"New Student 2\"\n        },\n        \"results\": [\n            {\n                \"subject\": \"Mathematics\",\n                \"score\": 85\n            }\n        ],\n        \"psychomotor\": [\n            {\n                \"skill\": \"Punctuality\",\n                \"score\": 4\n            }\n        ],\n        \"remarks\": {\n            \"teacher\": \"Excellent progress this term.\",\n            \"principal\": \"Keep up the great work!\"\n        }\n    }\n}"
-                },
-                {
-                  "name": "Error - Not Found",
-                  "originalRequest": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                      "raw": "{{auth_url}}/api/exam/reports/student-term-report?studentId=non-existent-student-id&termId=clxkzjwxk000al0v8g1h3f7ef&sessionId=clxkzjwxk0009l0v8g1h3f7ee",
-                      "host": [
-                        "{{auth_url}}"
-                      ],
-                      "path": [
-                        "api",
-                        "exam",
-                        "reports",
-                        "student-term-report"
-                      ],
-                      "query": [
-                        {
-                          "key": "studentId",
-                          "value": "non-existent-student-id"
-                        },
-                        {
-                          "key": "termId",
-                          "value": "clxkzjwxk000al0v8g1h3f7ef"
-                        },
-                        {
-                          "key": "sessionId",
-                          "value": "clxkzjwxk0009l0v8g1h3f7ee"
-                        }
-                      ]
-                    }
-                  },
-                  "status": "Not Found",
-                  "code": 404,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n    \"success\": false,\n    \"message\": \"Student not found\"\n}"
+                  "body": "{\n    \"success\": true,\n    \"message\": \"Student term report generated successfully.\",\n    \"data\": {\n        \"schoolInfo\": {\n            \"name\": \"Spotlight Comprehensive College\",\n            \"address\": \"28, Oviaweh Street Off Ayepe Road, Sagamu, Ogun State\",\n            \"phone\": [\"07063639808\", \"07037819024\"],\n            \"email\": \"spotlightinternationalschool@gmail.com\",\n            \"motto\": \"Motto: Light the way to success\"\n        },\n        \"studentInfo\": {\n            \"name\": \"John Doe\",\n            \"admissionNumber\": 12345,\n            \"class\": \"JSS 1\",\n            \"section\": \"A\",\n            \"gender\": \"male\",\n            \"dob\": \"2010-05-15T00:00:00.000Z\"\n        },\n        \"termInfo\": {\n            \"session\": \"2023/2024\",\n            \"term\": \"Second Term\",\n            \"timesOpened\": 120,\n            \"closingDate\": \"2024-04-12T00:00:00.000Z\",\n            \"resumptionDate\": \"2024-04-29T00:00:00.000Z\",\n            \"classSize\": 35\n        },\n        \"performance\": {\n            \"academic\": [\n                {\n                    \"name\": \"Mathematics\",\n                    \"scores\": [\n                        { \"title\": \"1st CA\", \"score\": 18 },\n                        { \"title\": \"2nd CA\", \"score\": 15 },\n                        { \"title\": \"Final Exam\", \"score\": 55 }\n                    ],\n                    \"total\": 88,\n                    \"max\": 100,\n                    \"percentage\": 88.00,\n                    \"grade\": \"A\",\n                    \"remark\": \"Excellent\"\n                }\n            ],\n            \"summary\": {\n                \"totalMarks\": 850,\n                \"maxMarks\": 1000,\n                \"percentage\": 85.00,\n                \"grade\": \"A\"\n            }\n        },\n        \"attendance\": {\n            \"present\": 118,\n            \"absent\": 2\n        },\n        \"affectiveTraits\": [\n            { \"name\": \"Punctuality\", \"rating\": 5 },\n            { \"name\": \"Honesty\", \"rating\": 4 }\n        ],\n        \"schoolBills\": [\n            { \"name\": \"Tuition Fee\", \"amount\": 50000 },\n            { \"name\": \"Books\", \"amount\": 233 }\n        ],\n        \"remarks\": {\n            \"teacher\": \"John has shown great improvement this term.\",\n            \"principal\": \"A very good result. Keep it up.\"\n        }\n    }\n}"
                 }
               ]
             }

@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import prisma from "../prisma";
 import { notifyUser } from "../utils/notification";
+import { transitionOngoingToCompleted, transitionScheduledToOngoing } from "../service/examStatusScheduler";
 import logger from "../utils/logger";
 
 /**
@@ -64,6 +65,8 @@ cron.schedule("0 0 * * *", () => {
 cron.schedule("* * * * *", async () => {
   // Runs "At every minute"
   logger.debug("Running scheduled message processing cron job.");
+  await transitionScheduledToOngoing();
+  await transitionOngoingToCompleted();
   const batchSize = 50;
   let messagesProcessedInThisRun = 0;
   let moreMessages = true;
