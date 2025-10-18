@@ -680,6 +680,7 @@ export const getStudentExams = async (
         }),
         sessionId: sessionId as string,
         termId: termId as string,
+        status: { not: "Draft" }
       },
       include: {
         papers: {
