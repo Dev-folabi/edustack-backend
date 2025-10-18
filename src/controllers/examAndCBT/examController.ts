@@ -59,6 +59,71 @@ export const createExam = async (
 };
 
 /**
+ * Update Exam Status
+ * @route PATCH /api/exams/:id/status
+ */
+export const updateExamStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!["Draft", "Scheduled", "Cancelled"].includes(status)) {
+      return handleError(res, "Invalid status provided.", 400);
+    }
+
+    const exam = await prisma.exam.findUnique({ where: { id } });
+
+    if (!exam) {
+      return handleError(res, "Exam not found.", 404);
+    }
+
+    // Add any business logic checks here, e.g., preventing status changes for ongoing/completed exams
+    if (exam.status === "Ongoing" || exam.status === "Completed") {
+      return handleError(
+        res,
+        `Cannot change status of an exam that is ${exam.status}.`,
+        400
+      );
+    }
+
+    const updatedExam = await prisma.$transaction(async (tx) => {
+      const examUpdate = await tx.exam.update({
+        where: { id },
+        data: { status },
+      });
+
+      if (status === "Cancelled") {
+        // Delete associated timetable entries
+        await tx.examTimetable.deleteMany({
+          where: {
+            examPaper: {
+              examId: id,
+            },
+          },
+        });
+      }
+      return examUpdate;
+    });
+
+    logger.info({ examId: updatedExam.id, newStatus: status }, "Exam status updated successfully.");
+
+    res.status(200).json({
+      success: true,
+      message: "Exam status updated successfully.",
+      data: updatedExam,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to update exam status");
+    next(error);
+  }
+};
+
+/**
  * Get all Exam Papers for a term/session
  * @route GET /api/papers/by-term-session
  */
@@ -612,7 +677,9 @@ export const deleteExam = async (
       );
     }
 
-    if (exam.status !== "Draft" && exam.status !== "Scheduled") {
+    if (
+      !["Draft", "Scheduled", "Cancelled"].includes(exam.status as string)
+    ) {
       return handleError(res, `Cannot delete an ${exam.status} exam.`, 400);
     }
 
@@ -680,7 +747,9 @@ export const getStudentExams = async (
         }),
         sessionId: sessionId as string,
         termId: termId as string,
-        status: { not: "Draft" }
+        status: {
+          not: "Draft",
+        },
       },
       include: {
         papers: {
