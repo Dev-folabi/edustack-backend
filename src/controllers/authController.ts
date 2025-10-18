@@ -789,7 +789,7 @@ export const userSignIn = async (
       }
     }
 
-    if (!user.hasVerifiedEmail) {
+    if (!user.hasVerifiedEmail && !user.isSuperAdmin && !user.student) {
       return handleError(
         res,
         "Your email is not verified, please verify your email first.",
