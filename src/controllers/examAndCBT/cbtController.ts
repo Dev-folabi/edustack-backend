@@ -51,9 +51,9 @@ export const startExamAttempt = async (
     }
 
     const now = new Date();
-    // if (now < examPaper.startTime || now > examPaper.endTime) {
-    //   return handleError(res, "This exam is not currently active.", 400);
-    // }
+    if (now < examPaper.startTime || now > examPaper.endTime) {
+      return handleError(res, "This exam is not currently active.", 400);
+    }
 
     let attempt = await prisma.examAttempt.findUnique({
       where: { examPaperId_studentId: { examPaperId, studentId } },
@@ -147,7 +147,6 @@ export const getStudentExamAttempt = async (
               select: {
                 questionText: true,
                 options: true,
-                correctAnswer: true,
                 marks: true,
               },
             },

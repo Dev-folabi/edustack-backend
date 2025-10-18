@@ -258,13 +258,14 @@ export const updateQuestionBank = async (
 ) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, subjectId } = req.body;
 
     const updatedBank = await prisma.questionBank.update({
       where: { id },
       data: {
         name,
         description,
+        subjectId,
       },
     });
 

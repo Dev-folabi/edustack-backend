@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
+import { Prisma } from "@prisma/client";
 
 /**
  * Generate a detailed report card for a single student for a specific term.
@@ -32,7 +33,7 @@ export const generateStudentTermReport = async (
       },
       include: {
         student: true,
-        class: { include: { school: true } },
+        class: { include: { schools: true } },
         section: true,
         term: true,
         session: true,
@@ -48,7 +49,7 @@ export const generateStudentTermReport = async (
     }
 
     const { student, class: studentClass, section, term, session } = enrollment;
-    const { school } = studentClass;
+    const school = studentClass.schools;
 
     // 2. Fetch all supplementary data in parallel
     const [
@@ -64,10 +65,12 @@ export const generateStudentTermReport = async (
       prisma.result.findMany({
         where: {
           studentId: studentId as string,
-          examPaper: {
-            exam: { termId: termId as string, sessionId: sessionId as string },
-          },
           isPublished: true,
+          examPaper: {
+            exam: {
+              is: { termId: termId as string, sessionId: sessionId as string },
+            },
+          },
         },
         include: {
           examPaper: {
@@ -99,7 +102,7 @@ export const generateStudentTermReport = async (
         by: ["status"],
         where: {
           studentId: studentId as string,
-          date: { gte: term.start_date, lte: term.end_date },
+          date: { gte: term?.start_date, lte: term?.end_date },
         },
         _count: { status: true },
       }),
@@ -119,17 +122,15 @@ export const generateStudentTermReport = async (
         },
         include: { invoice: { include: { invoiceItems: true } } },
       }),
-      // Total number of school days in the term
-      prisma.attendance.count({
+      // Total number of school days in the term (unique dates)
+      prisma.attendance.groupBy({
+        by: ["date"],
         where: {
           sectionId: section.id,
-          date: { gte: term.start_date, lte: term.end_date },
+          date: { gte: term?.start_date, lte: term?.end_date },
         },
-        distinct: ["date"],
       }),
     ]);
-
-    // 3. Process the fetched data
 
     // Process academic results
     const subjectsMap = new Map();
@@ -160,9 +161,7 @@ export const generateStudentTermReport = async (
     const academicResults = Array.from(subjectsMap.values()).map(
       (subjectData) => {
         const percentage =
-          subjectData.max > 0
-            ? (subjectData.total / subjectData.max) * 100
-            : 0;
+          subjectData.max > 0 ? (subjectData.total / subjectData.max) * 100 : 0;
         const gradeInfo = gradeCriteria.find(
           (g) => percentage >= g.minScore && percentage <= g.maxScore
         );
@@ -180,8 +179,7 @@ export const generateStudentTermReport = async (
         ? (grandTotalMarksObtained / grandTotalMaxMarks) * 100
         : 0;
     const overallGrade = gradeCriteria.find(
-      (g) =>
-        overallPercentage >= g.minScore && overallPercentage <= g.maxScore
+      (g) => overallPercentage >= g.minScore && overallPercentage <= g.maxScore
     );
 
     // Process attendance
@@ -213,10 +211,10 @@ export const generateStudentTermReport = async (
       },
       termInfo: {
         session: session.name,
-        term: term.name,
+        term: term?.name,
         timesOpened: attendance.timesSchoolOpened,
-        closingDate: term.end_date,
-        resumptionDate: term.resumptionDate,
+        closingDate: term?.end_date,
+        resumptionDate: term?.resumptionDate,
         classSize,
       },
       performance: {

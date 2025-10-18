@@ -5,8 +5,6 @@ import {
 } from "../../../middlewares/authorization";
 import {
   addManualMarks,
-  getEssayResponsesForGrading,
-  gradeEssayResponse,
   finalizeCbtResults,
   publishResults,
   addTermRemarks,
@@ -34,18 +32,6 @@ router.get(
   "/attempts/:attemptId/student/:studentId",
   roleAuthorization([...TEACHER_ROLES, ...STUDENT_ROLES, ...ADMIN_ROLES]),
   getStudentExamAttempt
-);
-
-// Routes for grading essays
-router.get(
-  "/essays-for-grading/:examPaperId",
-  roleAuthorization([...TEACHER_ROLES]),
-  getEssayResponsesForGrading
-);
-router.post(
-  "/grade-essay/:responseId",
-  roleAuthorization([...TEACHER_ROLES]),
-  gradeEssayResponse
 );
 
 // Route to finalize CBT results after grading
