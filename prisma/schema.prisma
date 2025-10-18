@@ -46,6 +46,7 @@ model School {
   email              String
   phone              String[]
   address            String
+  motto              String?
   userSchools        UserSchool[]
   classes            Classes[]
   isActive           Boolean             @default(true)
@@ -208,6 +209,7 @@ model Term {
   session                      Session                        @relation(fields: [sessionId], references: [id])
   start_date                   DateTime
   end_date                     DateTime
+  resumptionDate               DateTime?
   isActive                     Boolean                        @default(false)
   createdAt                    DateTime                       @default(now())
   updatedAt                    DateTime                       @updatedAt
@@ -641,24 +643,25 @@ model Exam {
 }
 
 model ExamPaper {
-  id             String          @id @default(cuid())
-  examId         String
-  exam           Exam            @relation(fields: [examId], references: [id])
-  subjectId      String
-  subject        Subject         @relation(fields: [subjectId], references: [id])
-  maxMarks       Float
-  paperDate      DateTime
-  startTime      DateTime
-  endTime        DateTime
-  mode           ExamMode
-  questionBankId String?
-  questionBank   QuestionBank?   @relation(fields: [questionBankId], references: [id])
-  totalQuestions Int?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  attempts       ExamAttempt[]
-  results        Result[]
-  examTimetables ExamTimetable[]
+  id                String          @id @default(cuid())
+  examId            String
+  exam              Exam            @relation(fields: [examId], references: [id])
+  subjectId         String
+  subject           Subject         @relation(fields: [subjectId], references: [id])
+  maxMarks          Float
+  paperDate         DateTime
+  startTime         DateTime
+  endTime           DateTime
+  mode              ExamMode
+  questionBankId    String?
+  questionBank      QuestionBank?   @relation(fields: [questionBankId], references: [id])
+  totalQuestions    Int?
+  isResultPublished Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  attempts          ExamAttempt[]
+  results           Result[]
+  examTimetables    ExamTimetable[]
 }
 
 model QuestionBank {
@@ -700,7 +703,7 @@ model ExamAttempt {
   examPaper   ExamPaper      @relation(fields: [examPaperId], references: [id])
   studentId   String
   student     Student        @relation(fields: [studentId], references: [id])
-  startedAt   DateTime
+  startedAt   DateTime?
   submittedAt DateTime?
   status      AttemptStatus  @default(NotStarted)
   totalScore  Float?

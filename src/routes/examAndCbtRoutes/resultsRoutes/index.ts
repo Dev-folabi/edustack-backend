@@ -5,34 +5,54 @@ import {
 } from "../../../middlewares/authorization";
 import {
   addManualMarks,
-  getEssayResponsesForGrading,
-  gradeEssayResponse,
   finalizeCbtResults,
   publishResults,
   addTermRemarks,
 } from "../../../controllers/examAndCBT/resultsController";
-import { TEACHER_ROLES } from "../../../config/constants";
+import { getStudentExamAttempt } from "../../../controllers/examAndCBT/cbtController";
+import {
+  TEACHER_ROLES,
+  STUDENT_ROLES,
+  ADMIN_ROLES,
+} from "../../../config/constants";
 
 const router = express.Router();
 
-// All results management routes are for teachers/admins
 router.use(verifyToken);
-router.use(roleAuthorization([...TEACHER_ROLES]));
 
 // Route for manual mark entry for paper-based tests
-router.post("/manual-entry", addManualMarks);
+router.post(
+  "/manual-entry",
+  roleAuthorization([...TEACHER_ROLES]),
+  addManualMarks
+);
 
-// Routes for grading essays
-router.get("/essays-for-grading/:examPaperId", getEssayResponsesForGrading);
-router.post("/grade-essay/:responseId", gradeEssayResponse);
+// Get a student's exam attempt details
+router.get(
+  "/attempts/:attemptId/student/:studentId",
+  roleAuthorization([...TEACHER_ROLES, ...STUDENT_ROLES, ...ADMIN_ROLES]),
+  getStudentExamAttempt
+);
 
 // Route to finalize CBT results after grading
-router.post("/finalize-cbt/:examPaperId", finalizeCbtResults);
+router.post(
+  "/finalize-cbt/:examPaperId",
+  roleAuthorization([...TEACHER_ROLES]),
+  finalizeCbtResults
+);
 
 // Route to publish/unpublish results
-router.post("/publish/:examPaperId", publishResults);
+router.post(
+  "/publish/:examPaperId",
+  roleAuthorization([...TEACHER_ROLES]),
+  publishResults
+);
 
 // Route to add term-level remarks for a student
-router.post("/term-remarks", addTermRemarks);
+router.post(
+  "/term-remarks",
+  roleAuthorization([...TEACHER_ROLES]),
+  addTermRemarks
+);
 
 export default router;

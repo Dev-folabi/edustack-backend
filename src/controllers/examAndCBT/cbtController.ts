@@ -51,9 +51,9 @@ export const startExamAttempt = async (
     }
 
     const now = new Date();
-    // if (now < examPaper.startTime || now > examPaper.endTime) {
-    //   return handleError(res, "This exam is not currently active.", 400);
-    // }
+    if (now < examPaper.startTime || now > examPaper.endTime) {
+      return handleError(res, "This exam is not currently active.", 400);
+    }
 
     let attempt = await prisma.examAttempt.findUnique({
       where: { examPaperId_studentId: { examPaperId, studentId } },
@@ -111,6 +111,70 @@ export const startExamAttempt = async (
     });
   } catch (error) {
     logger.error(error, "Failed to start exam attempt");
+    next(error);
+  }
+};
+
+/**
+ * Get a student's exam attempt with full details
+ * @route GET /api/cbt/attempts/:attemptId/student/:studentId
+ */
+export const getStudentExamAttempt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { attemptId, studentId } = req.params;
+
+    const attempt = await prisma.examAttempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        examPaper: {
+          include: {
+            subject: true,
+            exam: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+        student: true,
+        responses: {
+          include: {
+            question: {
+              select: {
+                questionText: true,
+                options: true,
+                marks: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!attempt) {
+      return handleError(res, "Exam attempt not found.", 404);
+    }
+
+    // Optional: Check if the attempt belongs to the specified student
+    if (attempt.studentId !== studentId) {
+      return handleError(
+        res,
+        "This exam attempt does not belong to the specified student.",
+        403
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Exam attempt fetched successfully.",
+      data: attempt,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to fetch exam attempt");
     next(error);
   }
 };

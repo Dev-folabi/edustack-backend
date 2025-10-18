@@ -15,6 +15,8 @@ import {
   getExamTimetable,
   getStudentExams,
   getExamPaperById,
+  getExamPapersByTermAndSession,
+  getAllExamPapers
 } from "../../../controllers/examAndCBT/examController";
 import {
   PARENT_ROLES,
@@ -34,6 +36,12 @@ router.get("/student/:studentId", getStudentExams);
 
 router.get("/", getExams);
 
+router.get(
+  "/papers/by-term-session",
+  roleAuthorization([...TEACHER_ROLES]),
+  getExamPapersByTermAndSession
+);
+
 router.get("/timetable/view", getExamTimetable);
 
 router.get("/:id", getExamById);
@@ -45,8 +53,14 @@ router.delete("/:id", roleAuthorization([...TEACHER_ROLES]), deleteExam);
 // Exam Paper Routes (nested under an exam)
 router.get(
   "/exam/papers/:paperId",
-  roleAuthorization([...STUDENT_ROLES]),
+  roleAuthorization([...STUDENT_ROLES, ...TEACHER_ROLES]),
   getExamPaperById
+);
+
+router.get(
+  "/exam/papers",
+  roleAuthorization([...TEACHER_ROLES]),
+  getAllExamPapers
 );
 
 router.post(
