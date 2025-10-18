@@ -121,9 +121,15 @@ export const updateExamStatus = async (
     }
 
     const updatedExam = await prisma.$transaction(async (tx) => {
+      let dataToUpdate: { status: string; endDate?: Date } = { status };
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        dataToUpdate.endDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
+
       const examUpdate = await tx.exam.update({
         where: { id },
-        data: { status },
+        data: dataToUpdate,
       });
 
       if (status === "Cancelled") {
@@ -625,12 +631,26 @@ export const updateExam = async (
       return handleError(res, "Exam not found.", 404);
     }
 
-    if (exam.status === "Ongoing" || exam.status === "Completed") {
-      return handleError(
-        res,
-        `Cannot update exam with status '${exam.status}'.`,
-        400
-      );
+    const currentStatus = exam.status;
+    let newEndDate = endDate ? new Date(endDate) : undefined;
+
+    if (status && status !== currentStatus) {
+      if (currentStatus === "Ongoing") {
+        return handleError(res, "Cannot update status of an Ongoing exam.", 400);
+      }
+      if (currentStatus === "Scheduled" && status === "Draft") {
+        return handleError(res, "Cannot change a Scheduled exam back to Draft.", 400);
+      }
+      if (currentStatus === "Completed" && status !== "Ongoing") {
+        return handleError(res, "Can only change a Completed exam to Ongoing.", 400);
+      }
+      if (status === "Ongoing" && currentStatus !== "Completed") {
+        return handleError(res, `Cannot change status to Ongoing from ${currentStatus}.`, 400);
+      }
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        newEndDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
     }
 
     const updatedExam = await prisma.$transaction(async (tx) => {
@@ -639,7 +659,7 @@ export const updateExam = async (
         data: {
           title,
           startDate: startDate ? new Date(startDate) : undefined,
-          endDate: endDate ? new Date(endDate) : undefined,
+          endDate: newEndDate,
           schoolId,
           classId,
           termId,
