@@ -199,6 +199,9 @@ export const submitExamAttempt = async (
         id: attemptId,
         studentId: studentInfo.studentId,
       },
+      include: {
+        examPaper: true,
+      },
     });
 
     if (!attempt) {
@@ -219,6 +222,10 @@ export const submitExamAttempt = async (
     const responses = await prisma.examResponse.findMany({
       where: { attemptId: attemptId },
       include: { question: true },
+      take: attempt.examPaper.totalQuestions ?? undefined,
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
     let totalScore = 0;
