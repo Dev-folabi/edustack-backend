@@ -16,12 +16,16 @@ export const transitionScheduledToOngoing = async () => {
       },
     });
 
-    for (const exam of examsToStart) {
-      await prisma.exam.update({
-        where: { id: exam.id },
-        data: { status: "Ongoing" },
-      });
-      logger.info(`Exam ${exam.id} has started and is now Ongoing.`);
+    if (examsToStart) {
+      for (const exam of examsToStart) {
+        await prisma.exam.update({
+          where: { id: exam.id },
+          data: { status: "Ongoing" },
+        });
+        logger.info(`Exam ${exam.id} has started and is now Ongoing.`);
+      }
+    } else {
+      logger.info("No exams to start at this moment.");
     }
   } catch (error) {
     logger.error("Error transitioning scheduled exams to ongoing:", error);
@@ -43,12 +47,16 @@ export const transitionOngoingToCompleted = async () => {
       },
     });
 
-    for (const exam of examsToComplete) {
-      await prisma.exam.update({
-        where: { id: exam.id },
-        data: { status: "Completed" },
-      });
-      logger.info(`Exam ${exam.id} has ended and is now Completed.`);
+    if (examsToComplete) {
+      for (const exam of examsToComplete) {
+        await prisma.exam.update({
+          where: { id: exam.id },
+          data: { status: "Completed" },
+        });
+        logger.info(`Exam ${exam.id} has ended and is now Completed.`);
+      }
+    } else {
+      logger.info("No exams to complete at this moment.");
     }
   } catch (error) {
     logger.error("Error transitioning ongoing exams to completed:", error);

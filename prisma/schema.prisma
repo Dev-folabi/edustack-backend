@@ -656,6 +656,7 @@ model ExamPaper {
   questionBankId    String?
   questionBank      QuestionBank?   @relation(fields: [questionBankId], references: [id])
   totalQuestions    Int?
+  instructions      String?
   isResultPublished Boolean         @default(false)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
