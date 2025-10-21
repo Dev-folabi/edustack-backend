@@ -62,11 +62,13 @@ cron.schedule("0 0 * * *", () => {
  * Fetches messages in batches, attempts to send them using `notifyUser`,
  * and updates their status to 'SENT' or 'FAILED'.
  */
+import { autoSubmitCbtExams } from "../service/cbtService";
 cron.schedule("* * * * *", async () => {
   // Runs "At every minute"
   logger.debug("Running scheduled message processing cron job.");
   await transitionScheduledToOngoing();
   await transitionOngoingToCompleted();
+  await autoSubmitCbtExams();
   const batchSize = 50;
   let messagesProcessedInThisRun = 0;
   let moreMessages = true;
