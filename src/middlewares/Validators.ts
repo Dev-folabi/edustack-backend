@@ -1529,12 +1529,12 @@ export const validateAssignTeacherToSubject = [
 
 // Validator for section attendance
 export const validateSectionAttendance = [
-  body("sectionId").isUUID().withMessage("Invalid section ID"),
+  body("sectionId").isString().withMessage("Section ID must be string"),
   body("date")
     .isISO8601()
     .withMessage("Invalid date format, must be in YYYY-MM-DD format"),
   body("records").isArray().withMessage("Records must be an array"),
-  body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
+  body("records.*.studentId").isString().withMessage("Invalid student ID"),
   body("records.*.status")
     .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
     .withMessage("Invalid attendance status"),
@@ -1544,13 +1544,13 @@ export const validateSectionAttendance = [
 
 // Validator for subject attendance
 export const validateSubjectAttendance = [
-  body("sectionId").isUUID().withMessage("Invalid section ID"),
-  body("subjectId").isUUID().withMessage("Invalid subject ID"),
+  body("sectionId").isString().withMessage("Section ID must be string"),
+  body("subjectId").isString().withMessage("Subject ID must be string"),
   body("date")
     .isISO8601()
     .withMessage("Invalid date format, must be in YYYY-MM-DD format"),
   body("records").isArray().withMessage("Records must be an array"),
-  body("records.*.studentId").isUUID().withMessage("Invalid student ID"),
+  body("records.*.studentId").isString().withMessage("Invalid student ID"),
   body("records.*.status")
     .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
     .withMessage("Invalid attendance status"),
@@ -1562,7 +1562,7 @@ export const validateSubjectAttendance = [
 export const validateStaffAttendance = [
   body("date").isISO8601().withMessage("Invalid date format"),
   body("records").isArray().withMessage("Records must be an array"),
-  body("records.*.staffId").isUUID().withMessage("Invalid staff ID"),
+  body("records.*.staffId").isString().withMessage("Invalid staff ID"),
   body("records.*.status")
     .isIn(["PRESENT", "ABSENT", "LATE", "HOLIDAY", "ON_LEAVE"])
     .withMessage("Invalid attendance status"),
@@ -1576,15 +1576,15 @@ export const validateStaffAttendance = [
 
 // Validator for viewing student attendance
 export const validateGetStudentAttendance = [
-  query("sectionId").isUUID().withMessage("Invalid section ID"),
+  query("sectionId").isString().withMessage("Invalid section ID"),
   query("date").optional().isISO8601().withMessage("Invalid date format"),
-  query("subjectId").optional().isUUID().withMessage("Invalid subject ID"),
+  query("subjectId").optional().isString().withMessage("Invalid subject ID"),
   query("month")
     .optional()
     .isInt({ min: 1, max: 12 })
     .withMessage("Invalid month"),
   query("year").optional().isInt({ min: 2000 }).withMessage("Invalid year"),
-  query("studentId").optional().isUUID().withMessage("Invalid student ID"),
+  query("studentId").optional().isString().withMessage("Invalid student ID"),
 
   handleValidationErrors,
 ];
@@ -1597,7 +1597,7 @@ export const validateGetStaffAttendance = [
     .isInt({ min: 1, max: 12 })
     .withMessage("Invalid month"),
   query("year").optional().isInt({ min: 2000 }).withMessage("Invalid year"),
-  query("staffId").optional().isUUID().withMessage("Invalid staff ID"),
+  query("staffId").optional().isString().withMessage("Invalid staff ID"),
 
   handleValidationErrors,
 ];

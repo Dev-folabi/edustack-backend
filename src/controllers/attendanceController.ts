@@ -78,19 +78,26 @@ export const takeSectionAttendance = async (
   next: NextFunction
 ) => {
   try {
+    const reqToken = (req as any).user as string | undefined;
+    if (!reqToken) return handleError(res, "Unauthorized: Pls, login.", 401);
+
+    const { sectionId, date, records } = req.body;
+    const isAdminAction = await checkIfAdminAction(reqToken, [sectionId]);
+
     const staff = await getStaffForRequester(req);
-    if (!staff)
+
+    if (!staff && !isAdminAction)
       return handleError(
         res,
         "Only teachers can take section attendance.",
         403
       );
 
-    const { sectionId, date, records } = req.body;
-
     // Authorization: must be the class teacher of this section
-    const owns = await ensureClassTeacherOwnsSection(staff.id, sectionId);
-    if (!owns)
+    const owns = isAdminAction
+      ? true
+      : await ensureClassTeacherOwnsSection(staff!.id, sectionId);
+    if (!owns && !isAdminAction)
       return handleError(
         res,
         "You are not assigned as class teacher for this section.",
@@ -136,7 +143,7 @@ export const takeSectionAttendance = async (
               status: r.status,
               notes: r.notes ?? null,
               studentId: r.studentId,
-              staffId: staff.id,
+              staffId: isAdminAction ? null : staff!.id,
               sectionId,
               attendanceType: ATTENDANCE_TYPE.STUDENT,
               subjectId: null,
@@ -147,7 +154,11 @@ export const takeSectionAttendance = async (
     });
 
     logger.info(
-      { sectionId, takenBy: staff.id, count: records.length },
+      {
+        sectionId,
+        takenBy: isAdminAction ? "Admin" : staff!.id,
+        count: records.length,
+      },
       "Section attendance recorded."
     );
     res.status(201).json({ success: true, message: "Attendance recorded." });
@@ -167,22 +178,25 @@ export const takeSubjectAttendance = async (
   next: NextFunction
 ) => {
   try {
+    const reqToken = (req as any).user as string | undefined;
+    if (!reqToken) return handleError(res, "Unauthorized: Pls, login.", 401);
+
+    const { sectionId, subjectId, date, records } = req.body;
+    const isAdminAction = await checkIfAdminAction(reqToken, [sectionId]);
+
     const staff = await getStaffForRequester(req);
-    if (!staff)
+
+    if (!staff && !isAdminAction)
       return handleError(
         res,
         "Only subject teachers can take subject attendance.",
         403
       );
 
-    const { sectionId, subjectId, date, records } = req.body;
-
     // Authorization: teacher must be assigned to this subject and subject must be linked to section
-    const allowed = await ensureSubjectTeacherForSection(
-      staff.id,
-      subjectId!,
-      sectionId
-    );
+    const allowed = isAdminAction
+      ? true
+      : await ensureSubjectTeacherForSection(staff!.id, subjectId!, sectionId);
     if (!allowed)
       return handleError(
         res,
@@ -230,7 +244,7 @@ export const takeSubjectAttendance = async (
               status: r.status,
               notes: r.notes ?? null,
               studentId: r.studentId,
-              staffId: staff.id,
+              staffId: isAdminAction ? null : staff!.id,
               sectionId,
               subjectId,
               attendanceType: ATTENDANCE_TYPE.STUDENT,
@@ -241,7 +255,12 @@ export const takeSubjectAttendance = async (
     });
 
     logger.info(
-      { sectionId, subjectId, takenBy: staff.id, count: records.length },
+      {
+        sectionId,
+        subjectId,
+        takenBy: isAdminAction ? "Admin" : staff!.id,
+        count: records.length,
+      },
       "Subject attendance recorded."
     );
     res.status(201).json({ success: true, message: "Attendance recorded." });
@@ -291,7 +310,7 @@ export const getStudentAttendance = async (
       where,
       orderBy: [{ date: "desc" }, { studentId: "asc" }],
       include: {
-        student: { select: { id: true, name: true } },
+        student: { select: { id: true, name: true, admission_number: true } },
         subject: { select: { id: true, name: true, code: true } },
       },
     });
