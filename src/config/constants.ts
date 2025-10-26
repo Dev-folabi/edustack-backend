@@ -2,7 +2,7 @@ import { UserRole } from "@prisma/client";
 
 // Token Expiry
 export const DEFAULT_TOKEN_EXPIRES_IN = "1d";
-export const SENSITIVE_ROLE_TOKEN_EXPIRES_IN = "1h";
+export const SENSITIVE_ROLE_TOKEN_EXPIRES_IN = "5h";
 
 // OTP Expiry
 export const OTP_EXPIRY_SECONDS = 15 * 60;

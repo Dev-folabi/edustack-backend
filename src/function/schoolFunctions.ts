@@ -103,45 +103,57 @@ export const getStaffInfoFromRequest = async (req: Request, res: Response) => {
     where: { userId },
   });
 
-  if (!staffInfo) {
+  const isAdmin = await prisma.user.findFirst({
+    where: { id: userId, isSuperAdmin: true },
+  });
+
+  if (!staffInfo && !isAdmin) {
     handleError(res, "Forbidden: User is not a staff member.", 403);
     return null;
   }
 
-  return { staffId: staffInfo.id };
+  return { 
+  role: isAdmin ? "ADMIN" : "STAFF",
+  staffId: staffInfo?.id,
+  userId
+};
+
 };
 
 export const getSchoolIdFromRequest = async (req: Request, res: Response) => {
-    const userId = getIdFromToken(req);
-    if (!userId) {
-        handleError(res, "Unauthorized: User ID not found in token.", 401);
-        return null;
-    }
-    const userSchool = await prisma.userSchool.findFirst({
-        where: { userId: userId },
-        select: { schoolId: true }
-    });
-    if (!userSchool) {
-        handleError(res, "Not Found: User is not associated with any school.", 404);
-        return null;
-    }
-    return userSchool.schoolId;
-}
+  const userId = getIdFromToken(req);
+  if (!userId) {
+    handleError(res, "Unauthorized: User ID not found in token.", 401);
+    return null;
+  }
+  const userSchool = await prisma.userSchool.findFirst({
+    where: { userId: userId },
+    select: { schoolId: true },
+  });
+  if (!userSchool) {
+    handleError(res, "Not Found: User is not associated with any school.", 404);
+    return null;
+  }
+  return userSchool.schoolId;
+};
 
-export const getStudentInfoFromRequest = async (req: Request, res: Response) => {
-    const userId = getIdFromToken(req);
-    if (!userId) {
-        handleError(res, "Unauthorized: User ID not found in token.", 401);
-        return null;
-    }
-    const studentInfo = await prisma.student.findUnique({
-        where: { userId },
-    });
+export const getStudentInfoFromRequest = async (
+  req: Request,
+  res: Response
+) => {
+  const userId = getIdFromToken(req);
+  if (!userId) {
+    handleError(res, "Unauthorized: User ID not found in token.", 401);
+    return null;
+  }
+  const studentInfo = await prisma.student.findUnique({
+    where: { userId },
+  });
 
-    if (!studentInfo) {
-        handleError(res, "Forbidden: User is not a student.", 403);
-        return null;
-    }
+  if (!studentInfo) {
+    handleError(res, "Forbidden: User is not a student.", 403);
+    return null;
+  }
 
-    return { studentId: studentInfo.id };
-}
+  return { studentId: studentInfo.id };
+};

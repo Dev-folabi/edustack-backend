@@ -22,13 +22,7 @@ export const createSubject = async (
   next: NextFunction
 ) => {
   try {
-    const {
-      name,
-      code,
-      isActive = true,
-      schoolIds,
-      sectionIds,
-    } = req.body;
+    const { name, code, isActive = true, schoolIds, sectionIds } = req.body;
 
     const reqToken = (req as any).user;
     const isAdminAction = await checkIfAdminAction(reqToken, schoolIds);
@@ -87,34 +81,37 @@ export const createSubject = async (
       return handleError(res, `Invalid section included}.`, 400);
     }
 
-    const createdSubject = await prisma.$transaction(
+    const createdSubjects = await prisma.$transaction(
       async (tx: PrismaTransactionClient) => {
-        const subject = await tx.subject.create({
-          data: {
-            name,
-            code,
-            isActive,
-            schools: {
-              create: uniqueSchoolIds.map((schoolId) => ({ schoolId })),
-            },
-            sections: {
-              create: uniqueSectionIds.map((sectionId) => ({ sectionId })),
-            },
-          },
-        });
-
-        return subject;
+        const subjects = await Promise.all(
+          uniqueSectionIds.map(async (sectionId) => {
+            return tx.subject.create({
+              data: {
+                name,
+                code,
+                isActive,
+                schools: {
+                  create: uniqueSchoolIds.map((schoolId) => ({ schoolId })),
+                },
+                sections: {
+                  create: [{ sectionId }],
+                },
+              },
+            });
+          })
+        );
+        return subjects;
       }
     );
 
     logger.info(
-      { subjectId: createdSubject.id },
+      { subjectId: createdSubjects.map((s) => s.id) },
       "Subject created successfully."
     );
     res.status(201).json({
       success: true,
       message: "Subject created successfully.",
-      data: createdSubject,
+      data: createdSubjects,
     });
   } catch (error) {
     next(error);
@@ -163,9 +160,25 @@ export const getSubjects = async (
     const subjects = await prisma.subject.findMany({
       where,
       include: {
-        schools: { include: { school: true } },
-        sections: { include: { section: true } },
-        teacher: true,
+        schools: { include: { school: { select: { id: true, name: true } } } },
+        sections: {
+          include: {
+            section: {
+              select: {
+                id: true,
+                name: true,
+                classId: true,
+                classes: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        teacher: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -208,7 +221,7 @@ export const getSubjectById = async (
     });
 
     if (!subject) {
-      return handleError(res, "Subject not found", 404)
+      return handleError(res, "Subject not found", 404);
     }
 
     res.json({
@@ -228,31 +241,25 @@ export const updateSubject = async (
 ) => {
   try {
     const reqToken = (req as any).user;
-    const { id, name, code, isActive } = req.body;
+    const { name, code, isActive } = req.body;
+    const { id } = req.params;
 
-    const uniqueIds = [...new Set(id as string[])];
-
-    const subjects = await prisma.subject.findMany({
-      where: { id: { in: uniqueIds } },
+    const subject = await prisma.subject.findUnique({
+      where: { id },
       include: {
         schools: true,
         sections: true,
       },
     });
 
-    const invalidIds = uniqueIds.filter(
-      (uid) => !subjects.some((s) => s.id === uid)
-    );
-    if (invalidIds.length > 0) {
-      logger.warn({ invalidIds }, "Invalid subject IDs provided.");
-      return handleError(res, "Invalid subject included.", 400);
+    if (!subject) {
+      return handleError(res, "Subject not found", 404);
     }
 
-    const schoolIds = [
-      ...new Set(subjects.flatMap((s) => s.schools.map((sc) => sc.schoolId))),
-    ];
-
-    const isAdminAction = await checkIfAdminAction(reqToken, schoolIds);
+    const isAdminAction = await checkIfAdminAction(
+      reqToken,
+      subject.schools.map((s) => s.schoolId)
+    );
     if (!isAdminAction) {
       logger.warn(
         { reqToken },
@@ -266,17 +273,20 @@ export const updateSubject = async (
     }
 
     const updatedSubjects: any = [];
-    for (const subjectId of uniqueIds) {
-      const updated = await prisma.subject.update({
-        where: { id: subjectId },
-        data: {
-          ...(name && { name }),
-          ...(code && { code }),
-          ...(isActive !== undefined && { isActive }),
-        },
-      });
-      updatedSubjects.push(updated);
-    }
+    const updated = await prisma.subject.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(code && { code }),
+        ...(isActive !== undefined && { isActive }),
+      },
+      include: {
+        schools: true,
+        sections: true,
+        teacher: true,
+      },
+    });
+    updatedSubjects.push(updated);
 
     res.json({
       success: true,
@@ -295,15 +305,20 @@ export const deleteSubject = async (
 ) => {
   try {
     const reqToken = (req as any).user;
-
     const { id } = req.params;
 
     const existingSubject = await prisma.subject.findUnique({
       where: { id },
       include: {
         schools: true,
+        sections: true,
+        attendance: true,
+        timetables: true,
+        ExamPaper: true,
+        QuestionBank: true,
       },
     });
+
     if (!existingSubject) {
       return handleError(res, "Invalid, subject not found", 400);
     }
@@ -316,25 +331,68 @@ export const deleteSubject = async (
     if (!isAdminAction) {
       logger.warn(
         { reqToken },
-        "User is not authorized to update a subject in the specified schools."
+        "User is not authorized to delete a subject in the specified schools."
       );
       return handleError(
         res,
-        "You are not authorized to update a subject in the specified schools.",
+        "You are not authorized to delete a subject in the specified schools.",
         403
       );
     }
 
-    const subject = await prisma.subject.delete({
-      where: { id }
+    // Check if subject has related records that prevent deletion
+    const hasRelatedRecords =
+      existingSubject.attendance.length > 0 ||
+      existingSubject.timetables.length > 0 ||
+      existingSubject.ExamPaper.length > 0 ||
+      existingSubject.QuestionBank.length > 0;
+
+    if (hasRelatedRecords) {
+      return handleError(
+        res,
+        "Cannot delete subject with existing attendance, timetables, exam papers, or question bank records. Consider deactivating instead.",
+        400
+      );
+    }
+
+    // Delete related records in transaction
+    const subject = await prisma.$transaction(async (tx) => {
+      // Delete SubjectSchool relationships
+      await tx.subjectSchool.deleteMany({
+        where: { subjectId: id },
+      });
+
+      // Delete SubjectSection relationships
+      await tx.subjectSection.deleteMany({
+        where: { subjectId: id },
+      });
+
+      // Finally delete the subject
+      return await tx.subject.delete({
+        where: { id },
+      });
     });
 
-    res.json({ success: true, message: "Subject deleted", data: subject });
+    logger.info(
+      { subjectId: id, subjectName: subject.name },
+      "Subject and related records deleted successfully."
+    );
 
+    res.json({
+      success: true,
+      message: "Subject deleted successfully",
+      data: subject,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to deactivate subject", error });
+    logger.error(
+      { error, subjectId: req.params.id },
+      "Failed to delete subject"
+    );
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete subject",
+      error,
+    });
   }
 };
 
@@ -359,7 +417,7 @@ export const assignTeacherToSubject = async (
       );
     }
     const { id } = req.params;
-    const { teacherId,  } = req.body;
+    const { teacherId } = req.body;
 
     const teacherExists = await prisma.staff.findUnique({
       where: { id: teacherId },

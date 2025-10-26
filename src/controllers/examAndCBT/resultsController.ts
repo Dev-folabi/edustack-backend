@@ -2,9 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
+import { getStaffInfoFromRequest } from "../../function/schoolFunctions";
 
 /**
- * Add or update marks for a paper-based exam for a single student.
+ * Add or update marks for multiple students for a single exam paper and optionally psychomotor assessments.
  * @route POST /api/results/manual-entry
  */
 export const addManualMarks = async (
@@ -13,49 +14,142 @@ export const addManualMarks = async (
   next: NextFunction
 ) => {
   try {
-    const { studentId, examPaperId, marksObtained, teacherRemark } = req.body;
+    const {
+      examPaperId,
+      studentMarks, // Expected: [{ studentId, marksObtained, teacherRemark, psychomotorAssessments }]
+      termId,
+      sessionId,
+    } = req.body;
 
+    const staffInfo = await getStaffInfoFromRequest(req, res);
+    if (!staffInfo) return;
+
+    // Validate examPaperId
+    if (!examPaperId) {
+      return handleError(res, "examPaperId is required.", 400);
+    }
+
+    // Validate studentMarks array
+    if (!Array.isArray(studentMarks) || studentMarks.length === 0) {
+      return handleError(res, "studentMarks must be a non-empty array.", 400);
+    }
+
+    // Verify exam paper exists
     const examPaper = await prisma.examPaper.findUnique({
       where: { id: examPaperId },
     });
+
     if (!examPaper) {
       return handleError(res, "Exam paper not found.", 404);
     }
-    if (examPaper.mode !== "PaperBased") {
-      return handleError(res, "This is only for paper-based exams.", 400);
-    }
 
-    const result = await prisma.result.upsert({
-      where: {
-        studentId_examPaperId: {
+    await prisma.$transaction(async (tx) => {
+      for (const entry of studentMarks) {
+        const {
           studentId,
-          examPaperId,
-        },
-      },
-      update: {
-        marksObtained,
-        teacherRemark,
-      },
-      create: {
-        studentId,
-        examPaperId,
-        marksObtained,
-        teacherRemark,
-      },
+          marksObtained,
+          teacherRemark,
+          psychomotorAssessments,
+        } = entry;
+
+        if (!studentId || marksObtained === undefined) {
+          throw new Error(
+            "Each entry must include studentId and marksObtained."
+          );
+        }
+
+        // 1. Upsert exam attempt
+        await tx.examAttempt.upsert({
+          where: {
+            examPaperId_studentId: { examPaperId, studentId },
+          },
+          update: {
+            totalScore: marksObtained,
+            status: "Graded",
+          },
+          create: {
+            examPaperId,
+            studentId,
+            totalScore: marksObtained,
+            status: "Graded",
+          },
+        });
+
+        // 2. Upsert academic results
+        await tx.result.upsert({
+          where: {
+            studentId_examPaperId: { studentId, examPaperId },
+          },
+          update: { marksObtained, teacherRemark },
+          create: {
+            studentId,
+            examPaperId,
+            marksObtained,
+            teacherRemark,
+          },
+        });
+
+        // 3. Process psychomotor assessments if provided for this student
+        if (psychomotorAssessments && Array.isArray(psychomotorAssessments)) {
+          if (!termId || !sessionId) {
+            throw new Error(
+              "termId and sessionId are required when providing psychomotor assessments."
+            );
+          }
+
+          for (const assessment of psychomotorAssessments) {
+            const { skillId, rating } = assessment;
+            if (!skillId || rating === undefined) {
+              throw new Error(
+                "Each psychomotor assessment must include a skillId and a rating."
+              );
+            }
+
+            await tx.studentPsychomotorAssessment.upsert({
+              where: {
+                studentId_skillId_termId_sessionId: {
+                  studentId,
+                  skillId,
+                  termId,
+                  sessionId,
+                },
+              },
+              update: { rating, assessedById: staffInfo.staffId! },
+              create: {
+                studentId,
+                skillId,
+                termId,
+                sessionId,
+                rating,
+                assessedById: staffInfo.staffId!,
+              },
+            });
+          }
+        }
+      }
     });
 
+    const studentIds = studentMarks.map((m) => m.studentId);
     logger.info(
-      { resultId: result.id, studentId, examPaperId },
-      "Manual marks added successfully."
+      { examPaperId, studentIds, staffId: staffInfo.staffId },
+      "Manual marks and/or psychomotor assessments added successfully."
     );
 
     res.status(201).json({
       success: true,
-      message: "Marks added successfully.",
-      data: result,
+      message: "Data saved successfully.",
+      data: studentIds.length,
     });
-  } catch (error) {
-    logger.error(error, "Failed to add manual marks");
+  } catch (error: any) {
+    if (
+      error.message.includes("termId and sessionId are required") ||
+      error.message.includes("must include a skillId and a rating") ||
+      error.message.includes("studentMarks must be a non-empty array") ||
+      error.message.includes("must include studentId and marksObtained")
+    ) {
+      return handleError(res, error.message, 400);
+    }
+    logger.error(error, "Failed to add manual marks and/or psychomotor");
     next(error);
   }
 };
@@ -137,11 +231,7 @@ export const finalizeCbtResults = async (
         status: "Submitted",
       },
       include: {
-        responses: {
-          where: {
-            question: { type: "Essay" },
-          },
-        },
+        responses: true,
       },
     });
 
@@ -157,13 +247,13 @@ export const finalizeCbtResults = async (
     const attemptsToUpdate = [] as any;
 
     for (const attempt of attempts) {
-      const allEssaysGraded = attempt.responses.every(
+      const allCbtGraded = attempt.responses.every(
         (r) => r.marksAwarded !== null
       );
-      if (!allEssaysGraded) {
+      if (!allCbtGraded) {
         return handleError(
           res,
-          `Cannot finalize results. Attempt ID ${attempt.id} has ungraded essay questions.`,
+          `Cannot finalize results. Attempt ID ${attempt.id} has ungraded CBT questions.`,
           400
         );
       }
@@ -231,6 +321,11 @@ export const publishResults = async (
       data: { isPublished: publish },
     });
 
+    await prisma.examPaper.update({
+      where: { id: examPaperId },
+      data: { isResultPublished: publish },
+    });
+
     logger.info(
       { examPaperId, published: publish, count },
       "Results publication status changed."
@@ -242,126 +337,6 @@ export const publishResults = async (
     });
   } catch (error) {
     logger.error(error, "Failed to publish results");
-    next(error);
-  }
-};
-
-/**
- * Get all essay responses for a given exam paper that need manual grading.
- * @route GET /api/results/essays-for-grading/:examPaperId
- */
-export const getEssayResponsesForGrading = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { examPaperId } = req.params;
-
-    const responses = await prisma.examResponse.findMany({
-      where: {
-        attempt: {
-          examPaperId: examPaperId,
-        },
-        question: {
-          type: "Essay",
-        },
-      },
-      include: {
-        question: {
-          select: {
-            questionText: true,
-            marks: true,
-          },
-        },
-        attempt: {
-          include: {
-            student: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Essay responses fetched successfully.",
-      data: responses,
-    });
-  } catch (error) {
-    logger.error(error, "Failed to fetch essay responses for grading");
-    next(error);
-  }
-};
-
-/**
- * Submit a grade for a single essay response.
- * @route POST /api/results/grade-essay/:responseId
- */
-export const gradeEssayResponse = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { responseId } = req.params;
-    const { marksAwarded } = req.body;
-
-    const response = await prisma.examResponse.findUnique({
-      where: { id: responseId },
-      include: { question: true, attempt: true },
-    });
-
-    if (!response) {
-      return handleError(res, "Exam response not found.", 404);
-    }
-    if (response.question.type !== "Essay") {
-      return handleError(
-        res,
-        "This response is not for an essay question.",
-        400
-      );
-    }
-    if (marksAwarded > response.question.marks) {
-      return handleError(
-        res,
-        `Marks awarded (${marksAwarded}) cannot exceed the maximum marks for the question (${response.question.marks}).`,
-        400
-      );
-    }
-
-    // This logic assumes we are grading for the first time.
-    // A more robust implementation would handle re-grading by subtracting the old score.
-    await prisma.$transaction([
-      prisma.examResponse.update({
-        where: { id: responseId },
-        data: { marksAwarded, isCorrect: marksAwarded > 0 ? true : false }, // Mark as correct if marks are given
-      }),
-      prisma.examAttempt.update({
-        where: { id: response.attemptId },
-        data: {
-          totalScore: {
-            increment: marksAwarded,
-          },
-        },
-      }),
-    ]);
-
-    logger.info(
-      { responseId, marksAwarded },
-      "Essay response graded successfully."
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Essay graded and score updated successfully.",
-    });
-  } catch (error) {
-    logger.error(error, "Failed to grade essay response");
     next(error);
   }
 };

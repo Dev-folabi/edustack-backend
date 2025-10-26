@@ -91,7 +91,7 @@ const getParent = async (
         OR: [
           { email: guardian_emailOrUsername },
           { username: guardian_emailOrUsername },
-        ]
+        ],
       },
       select: { parent: { select: { id: true } }, password: true },
     });
@@ -749,7 +749,13 @@ export const userSignIn = async (
         username: true,
         isSuperAdmin: true,
         hasVerifiedEmail: true,
-        userSchools: { select: { schoolId: true, role: true } },
+        userSchools: {
+          select: {
+            schoolId: true,
+            role: true,
+            school: { select: { name: true, isActive: true } },
+          },
+        },
         staff: true,
         student: true,
         parent: true,
@@ -783,7 +789,7 @@ export const userSignIn = async (
       }
     }
 
-    if (!user.hasVerifiedEmail) {
+    if (!user.hasVerifiedEmail && !user.isSuperAdmin && !user.student) {
       return handleError(
         res,
         "Your email is not verified, please verify your email first.",

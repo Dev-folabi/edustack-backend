@@ -79,23 +79,6 @@ const _synchronizeClassSectionsInTransaction = async (
       s.name.toUpperCase()
     );
 
-    const namesToDelete = existingSectionnames.filter(
-      (name) => !desiredSectionnames.includes(name)
-    );
-    if (namesToDelete.length > 0) {
-      const sectionIdsToDelete = existingSections
-        .filter((cs) => namesToDelete.includes(cs.name.toUpperCase()))
-        .map((cs) => cs.id);
-      if (sectionIdsToDelete.length > 0) {
-        await tx.class_Section.deleteMany({
-          where: { id: { in: sectionIdsToDelete } },
-        });
-        logger.info(
-          { classId, deletedSectionIds: sectionIdsToDelete },
-          "Sections deleted for class update."
-        );
-      }
-    }
 
     const namesToAdd = desiredSectionnames.filter(
       (name) => !existingSectionnames.includes(name)
@@ -170,7 +153,7 @@ export const createClass = async (
     const result = await prisma.$transaction(async (tx) => {
       const createdClasses = await Promise.all(
         uniqueSchoolIds.map((schId) =>
-          tx.classes.create({ data: { name, schoolId: schId } })
+          tx.classes.create({ data: { name: name.toUpperCase(), schoolId: schId } })
         )
       );
       await _createSectionsForClassesInTransaction(tx, createdClasses, section);
@@ -212,7 +195,10 @@ export const getAllClasses = async (
     };
     const classes = await prisma.classes.findMany({
       where: whereClause,
-      include: { sections: true, schools: { select: { name: true } } },
+      include: {
+        sections: { include: { class_teacher: { select: { name: true } } } },
+        schools: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (pageNumber - 1) * limitNumber,
       take: limitNumber,
@@ -241,16 +227,17 @@ export const getClassById = async (
     const classId = req.params.id;
     const foundClass = await prisma.classes.findUnique({
       where: { id: classId },
-      include: { sections: true, schools: { select: { name: true } } },
+      include: {
+        sections: { include: { class_teacher: { select: { name: true } } } },
+        schools: { select: { name: true } },
+      },
     });
     if (!foundClass) return handleError(res, "Class not found.", 404);
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Class retrieved successfully.",
-        data: foundClass,
-      });
+    res.status(200).json({
+      success: true,
+      message: "Class retrieved successfully.",
+      data: foundClass,
+    });
   } catch (error) {
     next(error);
   }
@@ -277,7 +264,7 @@ export const updateClass = async (
     const updatedClassData = await prisma.$transaction(async (tx) => {
       const updatedClass = await tx.classes.update({
         where: { id: classId },
-        data: { name: name !== undefined ? name : existingClass.name },
+        data: { name: name !== undefined ? name.toUpperCase() : existingClass.name.toUpperCase() },
       });
       await _synchronizeClassSectionsInTransaction(
         tx,
@@ -296,6 +283,88 @@ export const updateClass = async (
       success: true,
       message: "Class updated successfully.",
       data: updatedClassData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Updates a specific section's name and/or teacherId.
+ * @route PUT /api/class/section/:id
+ */
+export const updateSection = async (
+  req: Request<{ id: string }, {}, { name?: string; teacherId?: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id: sectionId } = req.params;
+    const { name, teacherId } = req.body;
+
+    // Check if section exists
+    const existingSection = await prisma.class_Section.findUnique({
+      where: { id: sectionId },
+      include: {
+        classes: { select: { name: true } },
+        class_teacher: { select: { name: true } },
+      },
+    });
+
+    if (!existingSection) {
+      return handleError(res, "Section not found.", 404);
+    }
+
+    // Validate teacherId if provided
+    if (teacherId) {
+      const teacher = await prisma.staff.findUnique({
+        where: { id: teacherId, isActive: true },
+      });
+      if (!teacher) {
+        return handleError(res, "Teacher not found or inactive.", 400);
+      }
+    }
+
+    // Check for duplicate section name within the same class
+    if (name && name !== existingSection.name) {
+      const duplicateSection = await prisma.class_Section.findFirst({
+        where: {
+          classId: existingSection.classId,
+          name: name.toUpperCase(),
+          id: { not: sectionId },
+        },
+      });
+      if (duplicateSection) {
+        return handleError(
+          res,
+          `Section with name "${name}" already exists in this class.`,
+          400
+        );
+      }
+    }
+
+    // Update the section
+    const updatedSection = await prisma.class_Section.update({
+      where: { id: sectionId },
+      data: {
+        ...(name && { name: name.toUpperCase() }),
+        ...(teacherId !== undefined && { teacherId: teacherId || null }),
+      },
+      include: {
+        classes: { select: { name: true } },
+        class_teacher: { select: { name: true, email: true } },
+      },
+    });
+
+    logger.info(
+      { sectionId, updatedName: updatedSection.name, teacherId },
+      "Section updated successfully."
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Section updated successfully.",
+      data: updatedSection,
     });
   } catch (error) {
     next(error);
@@ -327,6 +396,91 @@ export const deleteClass = async (
     res.status(200).json({
       success: true,
       message: "Class and associated sections deleted successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Deletes a specific section by its ID.
+ * @route DELETE /api/class/section/:id
+ */
+export const deleteSection = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id: sectionId } = req.params;
+
+    // Check if section exists
+    const existingSection = await prisma.class_Section.findUnique({
+      where: { id: sectionId },
+      include: {
+        classes: { select: { name: true } },
+        class_teacher: { select: { name: true } },
+      },
+    });
+
+    if (!existingSection) {
+      return handleError(res, "Section not found.", 404);
+    }
+
+    // Check for existing relationships before deletion
+    const sectionWithRelations = await prisma.class_Section.findUnique({
+      where: { id: sectionId },
+      include: {
+        _count: {
+          select: {
+            student_enrolled: true,
+            StudentTransfer: true,
+            subjects: true,
+            attendance: true,
+            timetables: true,
+            Exam: true,
+            ExamTimetable: true,
+          },
+        },
+      },
+    });
+
+    if (!sectionWithRelations) {
+      return handleError(res, "Section not found.", 404);
+    }
+
+    const counts = sectionWithRelations._count;
+    if (Object.values(counts).some((count) => count > 0)) {
+      return handleError(
+        res,
+        "Cannot delete section with existing relationships (students, transfers, subjects, attendance, timetables, or exams).",
+        400
+      );
+    }
+
+    await prisma.class_Section.delete({
+      where: { id: sectionId },
+    });
+
+    logger.info(
+      {
+        sectionId,
+        sectionName: existingSection.name,
+        className: existingSection.classes.name,
+      },
+      "Section deleted successfully."
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Section deleted successfully.",
+      data: {
+        deletedSection: {
+          id: existingSection.id,
+          name: existingSection.name,
+          className: existingSection.classes.name,
+        },
+      },
     });
   } catch (error) {
     next(error);

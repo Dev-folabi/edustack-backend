@@ -13,8 +13,18 @@ import {
   updateExamPaper,
   deleteExamPaper,
   getExamTimetable,
+  getStudentExams,
+  getExamPaperById,
+  getExamPapersByTermAndSession,
+  getAllExamPapers,
+  updateExamStatus
 } from "../../../controllers/examAndCBT/examController";
-import { TEACHER_ROLES } from "../../../config/constants";
+import {
+  PARENT_ROLES,
+  STUDENT_ROLES,
+  TEACHER_ROLES,
+  ADMIN_ROLES,
+} from "../../../config/constants";
 
 const router = express.Router();
 
@@ -24,7 +34,15 @@ router.use(verifyToken);
 // Exam Routes
 router.post("/", roleAuthorization([...TEACHER_ROLES]), createExam);
 
+router.get("/student/:studentId", getStudentExams);
+
 router.get("/", getExams);
+
+router.get(
+  "/papers/by-term-session",
+  roleAuthorization([...TEACHER_ROLES]),
+  getExamPapersByTermAndSession
+);
 
 router.get("/timetable/view", getExamTimetable);
 
@@ -34,7 +52,25 @@ router.put("/:id", roleAuthorization([...TEACHER_ROLES]), updateExam);
 
 router.delete("/:id", roleAuthorization([...TEACHER_ROLES]), deleteExam);
 
+router.patch(
+  "/:id/status",
+  roleAuthorization([...TEACHER_ROLES, ...ADMIN_ROLES]),
+  updateExamStatus
+);
+
 // Exam Paper Routes (nested under an exam)
+router.get(
+  "/exam/papers/:paperId",
+  roleAuthorization([...STUDENT_ROLES, ...TEACHER_ROLES]),
+  getExamPaperById
+);
+
+router.get(
+  "/exam/papers",
+  roleAuthorization([...TEACHER_ROLES]),
+  getAllExamPapers
+);
+
 router.post(
   "/:examId/papers",
   roleAuthorization([...TEACHER_ROLES]),

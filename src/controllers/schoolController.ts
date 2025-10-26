@@ -337,6 +337,33 @@ export const updateSchool = async (
       "School updated successfully."
     );
 
+    if (req.body.adminId) {
+      if (req.body.adminId !== userId) {
+        const adminUserExists = await prisma.user.findUnique({
+          where: { id: req.body.adminId },
+          select: { id: true },
+        });
+        if (adminUserExists) {
+          await prisma.userSchool.create({
+            data: { userId: req.body.adminId, schoolId, role: "admin" },
+          });
+          logger.info(
+            { schoolId, adminIdLinked: req.body.adminId },
+            "Additional admin linked to new school."
+          );
+        } else {
+          logger.warn(
+            {
+              schoolId: schoolId,
+              adminIdToLink: req.body.adminId,
+              createdBy: userId,
+            },
+            "Specified additional adminId for new school does not exist."
+          );
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: "School updated successfully.",
