@@ -26,7 +26,16 @@ export const createExam = async (
       termId,
       sessionId,
       schoolId,
+      status,
     } = req.body;
+
+    if (status && !["Draft", "Scheduled"].includes(status)) {
+      return handleError(
+        res,
+        "Invalid status provided. Must be 'Draft' or 'Scheduled'.",
+        400
+      );
+    }
 
     const newExam = await prisma.exam.create({
       data: {
@@ -38,6 +47,7 @@ export const createExam = async (
         termId,
         sessionId,
         schoolId,
+        ...(status && { status }),
         ...(staffInfo.role === "STAFF" && { createdById: staffInfo.staffId! }),
       },
     });
@@ -54,6 +64,100 @@ export const createExam = async (
     });
   } catch (error) {
     logger.error(error, "Failed to create exam");
+    next(error);
+  }
+};
+
+/**
+ * Update Exam Status
+ * @route PATCH /api/exams/:id/status
+ */
+export const updateExamStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!["Draft", "Scheduled", "Cancelled", "Ongoing"].includes(status)) {
+      return handleError(res, "Invalid status provided.", 400);
+    }
+
+    const exam = await prisma.exam.findUnique({ where: { id } });
+
+    if (!exam) {
+      return handleError(res, "Exam not found.", 404);
+    }
+
+    const currentStatus = exam.status;
+
+    // Business logic for status transitions
+    if (currentStatus === "Ongoing") {
+      return handleError(
+        res,
+        "Cannot manually change status of an Ongoing exam.",
+        400
+      );
+    }
+
+    if (currentStatus === "Completed" && status !== "Ongoing") {
+      return handleError(
+        res,
+        "Can only change status of a Completed exam to Ongoing.",
+        400
+      );
+    }
+    if (status === "Ongoing" && currentStatus !== "Completed") {
+      return handleError(
+        res,
+        `Cannot manually change status to Ongoing from ${currentStatus}.`,
+        400
+      );
+    }
+
+    const updatedExam = await prisma.$transaction(async (tx) => {
+      let dataToUpdate: { status: string; endDate?: Date } = { status };
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        dataToUpdate.endDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
+
+      const examUpdate = await tx.exam.update({
+        where: { id },
+        data: {
+          status: dataToUpdate.status as any,
+          ...(dataToUpdate.endDate && { endDate: dataToUpdate.endDate }),
+        },
+      });
+
+      if (status === "Cancelled") {
+        // Delete associated timetable entries
+        await tx.examTimetable.deleteMany({
+          where: {
+            examPaper: {
+              examId: id,
+            },
+          },
+        });
+      }
+      return examUpdate;
+    });
+
+    logger.info(
+      { examId: updatedExam.id, newStatus: status },
+      "Exam status updated successfully."
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Exam status updated successfully.",
+      data: updatedExam,
+    });
+  } catch (error) {
+    logger.error(error, "Failed to update exam status");
     next(error);
   }
 };
@@ -190,6 +294,7 @@ export const addExamPaper = async (
       mode,
       questionBankId,
       totalQuestions,
+      instructions,
     } = req.body;
 
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
@@ -201,6 +306,15 @@ export const addExamPaper = async (
       return handleError(
         res,
         "A Question Bank must be linked for CBT exams.",
+        400
+      );
+    }
+
+    const paperDateTime = new Date(paperDate);
+    if (paperDateTime < exam.startDate || paperDateTime > exam.endDate) {
+      return handleError(
+        res,
+        "Exam paper date must be within the exam's start and end dates.",
         400
       );
     }
@@ -217,6 +331,7 @@ export const addExamPaper = async (
           mode,
           ...(questionBankId && { questionBankId }),
           ...(totalQuestions && { totalQuestions }),
+          ...(instructions && { instructions }),
         },
       });
 
@@ -268,13 +383,38 @@ export const updateExamPaper = async (
       mode,
       questionBankId,
       totalQuestions,
+      instructions,
     } = req.body;
 
     const existingPaper = await prisma.examPaper.findUnique({
       where: { id: paperId },
+      include: {
+        exam: true,
+      },
     });
     if (!existingPaper) {
       return handleError(res, "Exam paper not found.", 404);
+    }
+
+    if (mode === "CBT" && !questionBankId) {
+      return handleError(
+        res,
+        "A Question Bank must be linked for CBT exams.",
+        400
+      );
+    }
+
+    const paperDateTime = new Date(paperDate);
+
+    if (
+      paperDateTime < existingPaper.exam.startDate ||
+      paperDateTime > existingPaper.exam.endDate
+    ) {
+      return handleError(
+        res,
+        "Exam paper date must be within the exam's start and end dates.",
+        400
+      );
     }
 
     const updatedPaper = await prisma.examPaper.update({
@@ -287,6 +427,7 @@ export const updateExamPaper = async (
         mode,
         ...(questionBankId && { questionBankId }),
         ...(totalQuestions && { totalQuestions }),
+        ...(instructions && { instructions }),
       },
     });
 
@@ -531,12 +672,42 @@ export const updateExam = async (
       return handleError(res, "Exam not found.", 404);
     }
 
-    if (exam.status === "Ongoing" || exam.status === "Completed") {
-      return handleError(
-        res,
-        `Cannot update exam with status '${exam.status}'.`,
-        400
-      );
+    const currentStatus = exam.status;
+    let newEndDate = endDate ? new Date(endDate) : undefined;
+
+    if (status && status !== currentStatus) {
+      if (currentStatus === "Ongoing") {
+        return handleError(
+          res,
+          "Cannot update status of an Ongoing exam.",
+          400
+        );
+      }
+      if (currentStatus === "Scheduled" && status === "Draft") {
+        return handleError(
+          res,
+          "Cannot change a Scheduled exam back to Draft.",
+          400
+        );
+      }
+      if (currentStatus === "Completed" && status !== "Ongoing") {
+        return handleError(
+          res,
+          "Can only change a Completed exam to Ongoing.",
+          400
+        );
+      }
+      if (status === "Ongoing" && currentStatus !== "Completed") {
+        return handleError(
+          res,
+          `Cannot change status to Ongoing from ${currentStatus}.`,
+          400
+        );
+      }
+
+      if (currentStatus === "Completed" && status === "Ongoing") {
+        newEndDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now
+      }
     }
 
     const updatedExam = await prisma.$transaction(async (tx) => {
@@ -545,7 +716,7 @@ export const updateExam = async (
         data: {
           title,
           startDate: startDate ? new Date(startDate) : undefined,
-          endDate: endDate ? new Date(endDate) : undefined,
+          endDate: newEndDate,
           schoolId,
           classId,
           termId,
@@ -612,7 +783,7 @@ export const deleteExam = async (
       );
     }
 
-    if (exam.status !== "Draft" && exam.status !== "Scheduled") {
+    if (!["Draft", "Scheduled", "Cancelled"].includes(exam.status as string)) {
       return handleError(res, `Cannot delete an ${exam.status} exam.`, 400);
     }
 
@@ -680,7 +851,9 @@ export const getStudentExams = async (
         }),
         sessionId: sessionId as string,
         termId: termId as string,
-        status: { not: "Draft" }
+        status: {
+          not: "Draft",
+        },
       },
       include: {
         papers: {

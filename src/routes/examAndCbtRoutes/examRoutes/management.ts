@@ -16,12 +16,14 @@ import {
   getStudentExams,
   getExamPaperById,
   getExamPapersByTermAndSession,
-  getAllExamPapers
+  getAllExamPapers,
+  updateExamStatus
 } from "../../../controllers/examAndCBT/examController";
 import {
   PARENT_ROLES,
   STUDENT_ROLES,
   TEACHER_ROLES,
+  ADMIN_ROLES,
 } from "../../../config/constants";
 
 const router = express.Router();
@@ -49,6 +51,12 @@ router.get("/:id", getExamById);
 router.put("/:id", roleAuthorization([...TEACHER_ROLES]), updateExam);
 
 router.delete("/:id", roleAuthorization([...TEACHER_ROLES]), deleteExam);
+
+router.patch(
+  "/:id/status",
+  roleAuthorization([...TEACHER_ROLES, ...ADMIN_ROLES]),
+  updateExamStatus
+);
 
 // Exam Paper Routes (nested under an exam)
 router.get(
