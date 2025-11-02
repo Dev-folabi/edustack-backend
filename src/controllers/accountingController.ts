@@ -454,20 +454,6 @@ export const getInvoices = async (req: Request, res: Response) => {
       );
       const amountDue = totalAmount - amountPaid;
 
-      const statuses = new Set(invoice.studentInvoices.map((si) => si.status));
-      let overallStatus = "UNPAID";
-      if (statuses.size === 0) {
-        overallStatus = "UNPAID"; // No students, so unpaid.
-      } else if (statuses.size === 1 && statuses.has("PAID")) {
-        overallStatus = "PAID";
-      } else if (statuses.has("OVERDUE")) {
-        overallStatus = "OVERDUE";
-      } else if (statuses.has("PAID") || statuses.has("PARTIALLY_PAID")) {
-        overallStatus = "PARTIALLY_PAID";
-      } else if (statuses.size === 1 && statuses.has("CANCELLED")) {
-        overallStatus = "CANCELLED";
-      }
-
       const { studentInvoices, ...rest } = invoice;
 
       return {
@@ -475,7 +461,6 @@ export const getInvoices = async (req: Request, res: Response) => {
         totalAmount,
         amountPaid,
         amountDue,
-        status: overallStatus,
         studentInvoicesCount: studentInvoices.length,
       };
     });
@@ -545,20 +530,6 @@ export const getInvoiceById = async (req: Request, res: Response) => {
     );
     const amountDue = totalAmount - amountPaid;
 
-    const statuses = new Set(invoice.studentInvoices.map((si) => si.status));
-    let overallStatus = "UNPAID";
-    if (statuses.size === 0) {
-      overallStatus = "UNPAID";
-    } else if (statuses.size === 1 && statuses.has("PAID")) {
-      overallStatus = "PAID";
-    } else if (statuses.has("OVERDUE")) {
-      overallStatus = "OVERDUE";
-    } else if (statuses.has("PAID") || statuses.has("PARTIALLY_PAID")) {
-      overallStatus = "PARTIALLY_PAID";
-    } else if (statuses.size === 1 && statuses.has("CANCELLED")) {
-      overallStatus = "CANCELLED";
-    }
-
     const { studentInvoices, ...rest } = invoice;
 
     res.json({
@@ -569,7 +540,6 @@ export const getInvoiceById = async (req: Request, res: Response) => {
         totalAmount,
         amountPaid,
         amountDue,
-        status: overallStatus,
         studentInvoices,
       },
     });
