@@ -343,7 +343,9 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
 
     // Generate invoice number
     const invoiceCount = await prisma.invoice.count({ where: { schoolId } });
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(4, "0")}`;
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(
+      invoiceCount + 1
+    ).padStart(4, "0")}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create invoice
@@ -352,8 +354,6 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           invoiceNumber,
           title,
           description,
-          totalAmount,
-          amountDue: totalAmount,
           allowPartialPayment,
           dueDate: dueDate ? new Date(dueDate) : null,
           schoolId,
@@ -364,7 +364,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       });
 
       // Create invoice items
-      const invoiceItems = await Promise.all(
+      await Promise.all(
         items.map((item) =>
           tx.invoiceItem.create({
             data: {
@@ -383,10 +383,12 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           invoiceId: invoice.id,
           studentId,
           assignedBy: userId,
+          totalAmount,
+          amountDue: totalAmount,
         })),
       });
 
-      return { invoice, invoiceItems, assignments };
+      return { invoice, assignments };
     });
 
     logger.info(
@@ -418,9 +420,15 @@ export const getInvoices = async (req: Request, res: Response) => {
     const take = Number(limit);
 
     const where: any = { schoolId };
-    if (status) where.status = status;
     if (termId) where.termId = termId;
     if (sessionId) where.sessionId = sessionId;
+    if (status) {
+      where.studentInvoices = {
+        some: {
+          status: status as any,
+        },
+      };
+    }
 
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
@@ -433,12 +441,7 @@ export const getInvoices = async (req: Request, res: Response) => {
           },
           term: true,
           session: true,
-          _count: {
-            select: {
-              studentInvoices: true,
-              payments: true,
-            },
-          },
+          studentInvoices: true,
         },
         skip,
         take,
@@ -447,10 +450,52 @@ export const getInvoices = async (req: Request, res: Response) => {
       prisma.invoice.count({ where }),
     ]);
 
+    const processedInvoices = invoices.map((invoice) => {
+      const totalAmount = invoice.studentInvoices.reduce(
+        (sum, si) => sum + si.totalAmount,
+        0
+      );
+      const amountPaid = invoice.studentInvoices.reduce(
+        (sum, si) => sum + si.amountPaid,
+        0
+      );
+      const amountDue = totalAmount - amountPaid;
+
+      const statuses = new Set(invoice.studentInvoices.map((si) => si.status));
+      let overallStatus = "UNPAID";
+      if (statuses.size === 0) {
+        overallStatus = "UNPAID"; // No students, so unpaid.
+      } else if (statuses.size === 1 && statuses.has("PAID")) {
+        overallStatus = "PAID";
+      } else if (statuses.has("OVERDUE")) {
+        overallStatus = "OVERDUE";
+      } else if (statuses.has("PAID") || statuses.has("PARTIALLY_PAID")) {
+        overallStatus = "PARTIALLY_PAID";
+      } else if (statuses.size === 1 && statuses.has("CANCELLED")) {
+        overallStatus = "CANCELLED";
+      }
+
+      const { studentInvoices, ...rest } = invoice;
+
+      return {
+        ...rest,
+        totalAmount,
+        amountPaid,
+        amountDue,
+        status: overallStatus,
+        studentInvoicesCount: studentInvoices.length,
+      };
+    });
+
     res.json({
       success: true,
       message: "Invoices retrieved successfully",
-      data: paginateResults(invoices, Number(page), Number(limit), total),
+      data: paginateResults(
+        processedInvoices,
+        Number(page),
+        Number(limit),
+        total
+      ),
     });
   } catch (error) {
     logger.error("Error fetching invoices:", error);
@@ -486,17 +531,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
                 admission_number: true,
               },
             },
-          },
-        },
-        payments: {
-          include: {
-            student: {
-              select: {
-                id: true,
-                name: true,
-                admission_number: true,
-              },
-            },
+            payments: true,
           },
         },
       },
@@ -507,10 +542,43 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       return;
     }
 
+    const totalAmount = invoice.studentInvoices.reduce(
+      (sum, si) => sum + si.totalAmount,
+      0
+    );
+    const amountPaid = invoice.studentInvoices.reduce(
+      (sum, si) => sum + si.amountPaid,
+      0
+    );
+    const amountDue = totalAmount - amountPaid;
+
+    const statuses = new Set(invoice.studentInvoices.map((si) => si.status));
+    let overallStatus = "UNPAID";
+    if (statuses.size === 0) {
+      overallStatus = "UNPAID";
+    } else if (statuses.size === 1 && statuses.has("PAID")) {
+      overallStatus = "PAID";
+    } else if (statuses.has("OVERDUE")) {
+      overallStatus = "OVERDUE";
+    } else if (statuses.has("PAID") || statuses.has("PARTIALLY_PAID")) {
+      overallStatus = "PARTIALLY_PAID";
+    } else if (statuses.size === 1 && statuses.has("CANCELLED")) {
+      overallStatus = "CANCELLED";
+    }
+
+    const { studentInvoices, ...rest } = invoice;
+
     res.json({
       success: true,
       message: "Invoice retrieved successfully",
-      data: invoice,
+      data: {
+        ...rest,
+        totalAmount,
+        amountPaid,
+        amountDue,
+        status: overallStatus,
+        studentInvoices,
+      },
     });
   } catch (error) {
     logger.error("Error fetching invoice:", error);
@@ -539,16 +607,11 @@ export const updateInvoice = async (req: Request, res: Response) => {
       return;
     }
 
-    // Prevent updating paid invoices
-    if (existingInvoice.status === "PAID" && updateData.status !== "PAID") {
-      handleError(res, "Cannot modify paid invoice status", 400);
-      return;
-    }
-
     const processedData: any = { ...updateData };
     if (updateData.dueDate) {
       processedData.dueDate = new Date(updateData.dueDate);
     }
+    delete processedData.status;
 
     const updatedInvoice = await prisma.invoice.update({
       where: { id },
@@ -596,25 +659,41 @@ export const deleteInvoice = async (req: Request, res: Response) => {
     }
 
     // Prevent deleting invoices with payments
-    const paymentCount = await prisma.payment.count({
+    const studentInvoices = await prisma.studentInvoice.findMany({
       where: { invoiceId: id },
+      include: {
+        payments: true,
+      },
     });
 
-    if (paymentCount > 0) {
-      handleError(res, "Cannot delete invoice with existing payments", 400);
-      return;
+    for (const si of studentInvoices) {
+      if (si.payments.length > 0) {
+        handleError(
+          res,
+          `Cannot delete invoice because student ${si.studentId} has payments associated with it.`,
+          400
+        );
+        return;
+      }
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.invoiceItem.deleteMany({
-        where: { invoiceId: id },
+      // Delete payments (although there should be none)
+      await tx.payment.deleteMany({
+        where: {
+          studentInvoice: {
+            invoiceId: id,
+          },
+        },
       });
-
       // Delete student assignments
       await tx.studentInvoice.deleteMany({
         where: { invoiceId: id },
       });
 
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: id },
+      });
       // Delete invoice
       await tx.invoice.delete({
         where: { id },
@@ -640,8 +719,7 @@ export const deleteInvoice = async (req: Request, res: Response) => {
 export const createPayment = async (req: Request, res: Response) => {
   try {
     const {
-      invoiceId,
-      studentId,
+      studentInvoiceId,
       amount,
       paymentMethod,
       transactionRef,
@@ -649,84 +727,58 @@ export const createPayment = async (req: Request, res: Response) => {
     }: CreatePaymentRequest = req.body;
     const { userId } = (req as any).user;
 
-    // Verify invoice exists and belongs to school
-    const invoice = await prisma.invoice.findFirst({
-      where: {
-        id: invoiceId,
-        schoolId,
-      },
-      select: {
-        id: true,
-        totalAmount: true,
-        amountPaid: true,
-        amountDue: true,
-        status: true,
-        allowPartialPayment: true,
-      },
-    });
-
-    if (!invoice) {
-      handleError(res, "Invoice not found", 404);
-      return;
-    }
-
-    // Verify student is assigned to this invoice
+    // Verify student invoice exists and belongs to school
     const studentInvoice = await prisma.studentInvoice.findFirst({
       where: {
-        invoiceId,
-        studentId,
+        id: studentInvoiceId,
+        invoice: {
+          schoolId,
+        },
+      },
+      include: {
+        invoice: true,
       },
     });
 
     if (!studentInvoice) {
-      handleError(res, "Student is not assigned to this invoice", 400);
+      handleError(res, "Student invoice not found", 404);
       return;
     }
 
     // Check if payment amount doesn't exceed remaining balance
-    const existingPayments = await prisma.payment.aggregate({
-      where: {
-        invoiceId,
-        studentId,
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-    });
-
-    const totalPaid = existingPayments._sum.amount || 0;
-    const remainingBalance = invoice.totalAmount - totalPaid;
-
-    if (amount > remainingBalance) {
+    if (amount > studentInvoice.amountDue) {
       handleError(
         res,
-        `Payment amount exceeds remaining balance of ${remainingBalance}`,
+        `Payment amount exceeds remaining balance of ${studentInvoice.amountDue}`,
         400
       );
+      return;
     }
 
     // Validate partial payment is allowed
-    const wouldBePartialPayment = amount < remainingBalance;
-    if (wouldBePartialPayment && !invoice.allowPartialPayment) {
+    const wouldBePartialPayment = amount < studentInvoice.amountDue;
+    if (wouldBePartialPayment && !studentInvoice.invoice.allowPartialPayment) {
       handleError(
         res,
         "Partial payments are not allowed for this invoice. Please pay the full remaining balance.",
         400
       );
+      return;
     }
+
 
     // Generate payment number
     const paymentCount = await prisma.payment.count({ where: { schoolId } });
-    const paymentNumber = `PAY-${new Date().getFullYear()}-${String(paymentCount + 1).padStart(6, "0")}`;
+    const paymentNumber = `PAY-${new Date().getFullYear()}-${String(
+      paymentCount + 1
+    ).padStart(6, "0")}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create payment
       const payment = await tx.payment.create({
         data: {
           paymentNumber,
-          invoiceId,
-          studentId,
+          studentInvoiceId,
           amount,
           paymentMethod,
           transactionRef,
@@ -737,26 +789,20 @@ export const createPayment = async (req: Request, res: Response) => {
         },
       });
 
-      // Update invoice amounts if payment is completed
-      if (paymentMethod === "CASH") {
-        const newAmountPaid = invoice.amountPaid + amount;
-        const newAmountDue = invoice.totalAmount - newAmountPaid;
+      // Update student invoice amounts if payment is completed
+      if (payment.status === "COMPLETED") {
+        const newAmountPaid = studentInvoice.amountPaid + amount;
+        const newAmountDue = studentInvoice.totalAmount - newAmountPaid;
 
         let newStatus;
         if (newAmountDue <= 0) {
           newStatus = "PAID";
-        } else if (
-          newAmountPaid > 0 &&
-          newAmountDue > 0 &&
-          invoice.allowPartialPayment
-        ) {
-          newStatus = "PARTIALLY_PAID";
         } else {
-          newStatus = invoice.status;
+          newStatus = "PARTIALLY_PAID";
         }
 
-        await tx.invoice.update({
-          where: { id: invoiceId },
+        await tx.studentInvoice.update({
+          where: { id: studentInvoiceId },
           data: {
             amountPaid: newAmountPaid,
             amountDue: newAmountDue,
@@ -769,7 +815,7 @@ export const createPayment = async (req: Request, res: Response) => {
     });
 
     logger.info(
-      `Payment created: ${result.id} for invoice: ${invoiceId} by user: ${userId}`
+      `Payment created: ${result.id} for student invoice: ${studentInvoiceId} by user: ${userId}`
     );
 
     res.status(201).json({
@@ -793,8 +839,7 @@ export const getPayments = async (req: Request, res: Response) => {
       limit = 10,
       schoolId,
       status,
-      invoiceId,
-      studentId,
+      studentInvoiceId,
       paymentMethod,
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
@@ -802,27 +847,29 @@ export const getPayments = async (req: Request, res: Response) => {
 
     const where: any = { schoolId };
     if (status) where.status = status;
-    if (invoiceId) where.invoiceId = invoiceId;
-    if (studentId) where.studentId = studentId;
+    if (studentInvoiceId) where.studentInvoiceId = studentInvoiceId;
     if (paymentMethod) where.paymentMethod = paymentMethod;
 
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
         where,
         include: {
-          invoice: {
-            select: {
-              id: true,
-              invoiceNumber: true,
-              title: true,
-              totalAmount: true,
-            },
-          },
-          student: {
-            select: {
-              id: true,
-              name: true,
-              admission_number: true,
+          studentInvoice: {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  name: true,
+                  admission_number: true,
+                },
+              },
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  title: true,
+                },
+              },
             },
           },
         },
@@ -856,22 +903,26 @@ export const getPaymentById = async (req: Request, res: Response) => {
         id,
       },
       include: {
-        invoice: {
+        studentInvoice: {
           include: {
-            invoiceItems: {
-              include: {
-                feeCategory: true,
+            student: {
+              select: {
+                id: true,
+                name: true,
+                admission_number: true,
+                email: true,
+                phone: true,
               },
             },
-          },
-        },
-        student: {
-          select: {
-            id: true,
-            name: true,
-            admission_number: true,
-            email: true,
-            phone: true,
+            invoice: {
+              include: {
+                invoiceItems: {
+                  include: {
+                    feeCategory: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -913,15 +964,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         schoolId,
       },
       include: {
-        invoice: {
-          select: {
-            id: true,
-            totalAmount: true,
-            amountPaid: true,
-            status: true,
-            allowPartialPayment: true,
-          },
-        },
+        studentInvoice: true,
       },
     });
 
@@ -940,7 +983,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         },
       });
 
-      // Update invoice amounts based on payment status change
+      // Update student invoice amounts based on payment status change
       if (payment.status !== status) {
         let amountChange = 0;
 
@@ -951,26 +994,22 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         }
 
         if (amountChange !== 0) {
-          const newAmountPaid = payment.invoice.amountPaid + amountChange;
-          const newAmountDue = payment.invoice.totalAmount - newAmountPaid;
+          const newAmountPaid =
+            payment.studentInvoice.amountPaid + amountChange;
+          const newAmountDue =
+            payment.studentInvoice.totalAmount - newAmountPaid;
 
           let newStatus;
           if (newAmountDue <= 0) {
             newStatus = "PAID";
-          } else if (
-            newAmountPaid > 0 &&
-            newAmountDue > 0 &&
-            payment.invoice.allowPartialPayment
-          ) {
+          } else if (newAmountPaid > 0) {
             newStatus = "PARTIALLY_PAID";
-          } else if (newAmountDue === payment.invoice.totalAmount) {
-            newStatus = "SENT";
           } else {
-            newStatus = payment.invoice.status;
+            newStatus = "UNPAID";
           }
 
-          await tx.invoice.update({
-            where: { id: payment.invoiceId },
+          await tx.studentInvoice.update({
+            where: { id: payment.studentInvoiceId },
             data: {
               amountPaid: newAmountPaid,
               amountDue: newAmountDue,
@@ -1000,6 +1039,63 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const cancelStudentInvoice = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { userId } = (req as any).user;
+
+    const studentInvoice = await prisma.studentInvoice.findFirst({
+      where: {
+        id,
+      },
+      include: {
+        payments: {
+          where: {
+            status: "COMPLETED",
+          },
+        },
+      },
+    });
+
+    if (!studentInvoice) {
+      handleError(res, "Student invoice not found", 404);
+      return;
+    }
+
+    if (studentInvoice.payments.length > 0) {
+      handleError(
+        res,
+        "Cannot cancel an invoice that has completed payments.",
+        400
+      );
+      return;
+    }
+
+    const updatedStudentInvoice = await prisma.studentInvoice.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+      },
+    });
+
+    logger.info(
+      `Student invoice cancelled: ${id} by user: ${userId}`
+    );
+
+    res.json({
+      success: true,
+      message: "Student invoice cancelled successfully",
+      data: updatedStudentInvoice,
+    });
+  } catch (error) {
+    logger.error("Error cancelling student invoice:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+}
 
 // Expenses
 export const createExpense = async (req: Request, res: Response) => {
