@@ -43,6 +43,7 @@ import {
   getStudentFinancialReport,
   getPaymentReport,
   handlePaymentWebhook,
+  cancelStudentInvoice,
 } from "../../controllers/accountingController";
 import { FINANCE_ROLES, ADMIN_ROLES } from "../../config/constants";
 
@@ -126,6 +127,14 @@ router.delete(
   roleAuthorization([...ADMIN_ROLES]),
   idValidator,
   deleteInvoice
+);
+
+router.patch(
+  "/student-invoices/:id/cancel",
+  verifyToken,
+  roleAuthorization([...FINANCE_ROLES]),
+  idValidator,
+  cancelStudentInvoice
 );
 
 // Payment Routes

@@ -44,6 +44,39 @@ const updateTermStatuses = async () => {
   }
 };
 
+const updateOverdueInvoices = async () => {
+  const currentDate = new Date();
+  let updatedCount = 0;
+
+  const result = await prisma.studentInvoice.updateMany({
+    where: {
+      status: {
+        in: ["UNPAID", "PARTIALLY_PAID"],
+      },
+      invoice: {
+        dueDate: {
+          lt: currentDate,
+        },
+      },
+    },
+    data: {
+      status: "OVERDUE",
+    },
+  });
+
+  updatedCount = result.count;
+
+  if (updatedCount > 0) {
+    logger.info(
+      { updatedCount },
+      "Overdue invoice statuses updated by cron job."
+    );
+  } else {
+    logger.info("No overdue invoices to update.");
+  }
+};
+
+
 /**
  * Cron job scheduled to run daily at midnight (server time).
  * Executes `updateTermStatuses` to manage the active status of academic terms.
@@ -53,6 +86,14 @@ cron.schedule("0 0 * * *", () => {
   logger.info("Running daily term status update cron job.");
   updateTermStatuses().catch((error) => {
     logger.error({ err: error }, "Error updating term statuses via cron job");
+  });
+
+  logger.info("Running daily overdue invoice update cron job.");
+  updateOverdueInvoices().catch((error) => {
+    logger.error(
+      { err: error },
+      "Error updating overdue invoices via cron job"
+    );
   });
 });
 
