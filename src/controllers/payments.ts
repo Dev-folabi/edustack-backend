@@ -8,7 +8,7 @@ import crypto from "crypto";
 export const initializeOnlinePayment = async (req: Request, res: Response) => {
   try {
     const { invoiceId, studentId, amount, schoolId, callbackUrl } = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     const invoice = await prisma.invoice.findFirst({
       where: {

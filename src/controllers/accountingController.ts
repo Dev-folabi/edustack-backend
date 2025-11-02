@@ -246,7 +246,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       allowPartialPayment = false,
     }: CreateAndAssignInvoiceRequest = req.body;
 
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Validate fee categories exist
     const feeCategoryIds = items.map((item) => item.feeCategoryId);
@@ -524,7 +524,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
 export const updateInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdateInvoiceRequest = req.body;
 
     // Check if invoice exists
@@ -581,7 +581,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
 export const deleteInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Check if invoice exists
     const invoice = await prisma.invoice.findFirst({
@@ -647,7 +647,7 @@ export const createPayment = async (req: Request, res: Response) => {
       transactionRef,
       schoolId,
     }: CreatePaymentRequest = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Verify invoice exists and belongs to school
     const invoice = await prisma.invoice.findFirst({
@@ -900,7 +900,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { schoolId, status } = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     if (!["PENDING", "COMPLETED", "FAILED", "REFUNDED"].includes(status)) {
       handleError(res, "Invalid payment status", 400);
@@ -1013,7 +1013,7 @@ export const createExpense = async (req: Request, res: Response) => {
       expenseDate,
       schoolId,
     }: CreateExpenseRequest = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     const expense = await prisma.expense.create({
       data: {
@@ -1115,7 +1115,7 @@ export const getExpenseById = async (req: Request, res: Response) => {
 export const updateExpense = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdateExpenseRequest = req.body;
 
     const expense = await prisma.expense.findFirst({
@@ -1158,7 +1158,7 @@ export const updateExpense = async (req: Request, res: Response) => {
 export const deleteExpense = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     const expense = await prisma.expense.findFirst({
       where: {
@@ -1198,7 +1198,7 @@ export const createPaymentGateway = async (req: Request, res: Response) => {
         webhookUrl,
         callbackUrl, merchantId, isActive }: CreatePaymentGatewayRequest =
       req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Check if gateway with same provider already exists
     const existingGateway = await prisma.paymentGateway.findFirst({
@@ -1284,7 +1284,7 @@ export const getPaymentGateways = async (req: Request, res: Response) => {
 export const updatePaymentGateway = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdatePaymentGatewayRequest = req.body;
 
     const gateway = await prisma.paymentGateway.findFirst({
