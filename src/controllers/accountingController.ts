@@ -422,13 +422,6 @@ export const getInvoices = async (req: Request, res: Response) => {
     const where: any = { schoolId };
     if (termId) where.termId = termId;
     if (sessionId) where.sessionId = sessionId;
-    if (status) {
-      where.studentInvoices = {
-        some: {
-          status: status as any,
-        },
-      };
-    }
 
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
