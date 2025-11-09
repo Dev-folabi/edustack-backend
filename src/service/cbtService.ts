@@ -91,6 +91,6 @@ export const autoSubmitCbtExams = async () => {
       }
     }
   } catch (error) {
-    logger.error("Failed to auto-submit CBT exams", error);
+    logger.error({ err: error }, "Failed to auto-submit CBT exams");
   }
 };

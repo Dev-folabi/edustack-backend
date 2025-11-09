@@ -55,7 +55,7 @@ export const createFeeCategory = async (
       data: feeCategory,
     });
   } catch (error) {
-    logger.error("Error creating fee category:", error);
+    logger.error({ err: error }, "Error creating fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -89,7 +89,7 @@ export const getFeeCategories = async (req: Request, res: Response) => {
       data: paginateResults(feeCategories, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching fee categories:", error);
+    logger.error({ err: error }, "Error fetching fee categories:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -117,7 +117,7 @@ export const getFeeCategoryById = async (req: Request, res: Response) => {
       data: feeCategory,
     });
   } catch (error) {
-    logger.error("Error fetching fee category:", error);
+    logger.error({ err: error }, "Error fetching fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -170,7 +170,7 @@ export const updateFeeCategory = async (req: Request, res: Response) => {
       data: updatedCategory,
     });
   } catch (error) {
-    logger.error("Error updating fee category:", error);
+    logger.error({ err: error }, "Error updating fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -220,7 +220,7 @@ export const deleteFeeCategory = async (req: Request, res: Response) => {
       message: "Fee category deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting fee category:", error);
+    logger.error({ err: error }, "Error deleting fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -404,7 +404,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error creating and assigning invoice:", error);
+    logger.error({ err: error }, "Error creating and assigning invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -476,7 +476,7 @@ export const getInvoices = async (req: Request, res: Response) => {
       ),
     });
   } catch (error) {
-    logger.error("Error fetching invoices:", error);
+    logger.error({ err: error }, "Error fetching invoices:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -544,7 +544,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching invoice:", error);
+    logger.error({ err: error }, "Error fetching invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -596,7 +596,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
       data: updatedInvoice,
     });
   } catch (error) {
-    logger.error("Error updating invoice:", error);
+    logger.error({ err: error }, "Error updating invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -670,7 +670,7 @@ export const deleteInvoice = async (req: Request, res: Response) => {
       message: "Invoice deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting invoice:", error);
+    logger.error({ err: error }, "Error deleting invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -729,7 +729,6 @@ export const createPayment = async (req: Request, res: Response) => {
       return;
     }
 
-
     // Generate payment number
     const paymentCount = await prisma.payment.count({ where: { schoolId } });
     const paymentNumber = `PAY-${new Date().getFullYear()}-${String(
@@ -787,7 +786,7 @@ export const createPayment = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
-    logger.error("Error creating payment:", error);
+    logger.error({ err: error }, "Error creating payment:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -849,7 +848,7 @@ export const getPayments = async (req: Request, res: Response) => {
       data: paginateResults(payments, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching payments:", error);
+    logger.error({ err: error }, "Error fetching payments:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -902,7 +901,7 @@ export const getPaymentById = async (req: Request, res: Response) => {
       data: payment,
     });
   } catch (error) {
-    logger.error("Error fetching payment:", error);
+    logger.error({ err: error }, "Error fetching payment:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -995,7 +994,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
-    logger.error("Error updating payment status:", error);
+    logger.error({ err: error }, "Error updating payment status:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1042,9 +1041,7 @@ export const cancelStudentInvoice = async (req: Request, res: Response) => {
       },
     });
 
-    logger.info(
-      `Student invoice cancelled: ${id} by user: ${userId}`
-    );
+    logger.info(`Student invoice cancelled: ${id} by user: ${userId}`);
 
     res.json({
       success: true,
@@ -1052,13 +1049,13 @@ export const cancelStudentInvoice = async (req: Request, res: Response) => {
       data: updatedStudentInvoice,
     });
   } catch (error) {
-    logger.error("Error cancelling student invoice:", error);
+    logger.error({ err: error }, "Error cancelling student invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
     });
   }
-}
+};
 
 // Expenses
 export const createExpense = async (req: Request, res: Response) => {
@@ -1095,7 +1092,7 @@ export const createExpense = async (req: Request, res: Response) => {
       data: expense,
     });
   } catch (error) {
-    logger.error("Error creating expense:", error);
+    logger.error({ err: error }, "Error creating expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1134,7 +1131,7 @@ export const getExpenses = async (req: Request, res: Response) => {
       data: paginateResults(expenses, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching expenses:", error);
+    logger.error({ err: error }, "Error fetching expenses:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1163,7 +1160,7 @@ export const getExpenseById = async (req: Request, res: Response) => {
       data: expense,
     });
   } catch (error) {
-    logger.error("Error fetching expense:", error);
+    logger.error({ err: error }, "Error fetching expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1206,7 +1203,7 @@ export const updateExpense = async (req: Request, res: Response) => {
       data: updatedExpense,
     });
   } catch (error) {
-    logger.error("Error updating expense:", error);
+    logger.error({ err: error }, "Error updating expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1241,7 +1238,7 @@ export const deleteExpense = async (req: Request, res: Response) => {
       message: "Expense deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting expense:", error);
+    logger.error({ err: error }, "Error deleting expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1252,11 +1249,16 @@ export const deleteExpense = async (req: Request, res: Response) => {
 // Payment Gateways
 export const createPaymentGateway = async (req: Request, res: Response) => {
   try {
-    const { schoolId,  provider, publicKey,
-        secretKey,
-        webhookUrl,
-        callbackUrl, merchantId, isActive }: CreatePaymentGatewayRequest =
-      req.body;
+    const {
+      schoolId,
+      provider,
+      publicKey,
+      secretKey,
+      webhookUrl,
+      callbackUrl,
+      merchantId,
+      isActive,
+    }: CreatePaymentGatewayRequest = req.body;
     const userId = (req as any).user;
 
     // Check if gateway with same provider already exists
@@ -1297,7 +1299,7 @@ export const createPaymentGateway = async (req: Request, res: Response) => {
       data: gateway,
     });
   } catch (error) {
-    logger.error("Error creating payment gateway:", error);
+    logger.error({ err: error }, "Error creating payment gateway:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1332,7 +1334,7 @@ export const getPaymentGateways = async (req: Request, res: Response) => {
       data: gateways,
     });
   } catch (error) {
-    logger.error("Error fetching payment gateways:", error);
+    logger.error({ err: error }, "Error fetching payment gateways:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1363,7 +1365,7 @@ export const updatePaymentGateway = async (req: Request, res: Response) => {
       select: {
         id: true,
         provider: true,
-         merchantId: true,
+        merchantId: true,
         webhookUrl: true,
         callbackUrl: true,
         publicKey: true,
@@ -1382,7 +1384,7 @@ export const updatePaymentGateway = async (req: Request, res: Response) => {
       data: updatedGateway,
     });
   } catch (error) {
-    logger.error("Error updating payment gateway:", error);
+    logger.error({ err: error }, "Error updating payment gateway:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1413,75 +1415,81 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       expenseWhere.expenseDate = dateFilter;
     }
 
-    const [invoiceStats, paymentStats, expenseStats, recentTransactions] =
-      await Promise.all([
-        // Invoice statistics
-        prisma.invoice.aggregate({
-          where: invoiceWhere,
-          _sum: {
-            totalAmount: true,
-            amountPaid: true,
-            amountDue: true,
-          },
-          _count: true,
-        }),
+    const [
+      invoiceCount,
+      studentInvoiceStats,
+      paymentStats,
+      expenseStats,
+      recentTransactions,
+    ] = await Promise.all([
+      // Invoice count
+      prisma.invoice.count({ where: invoiceWhere }),
 
-        // Payment statistics
-        prisma.payment.aggregate({
-          where: {
-            schoolId,
-            status: "COMPLETED",
-            ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
-          },
-          _sum: {
-            amount: true,
-          },
-          _count: true,
-        }),
+      // StudentInvoice statistics (holds totals)
+      prisma.studentInvoice.aggregate({
+        where: { invoice: invoiceWhere },
+        _sum: {
+          totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
+        },
+        _count: true,
+      }),
 
-        // Expense statistics
-        prisma.expense.aggregate({
-          where: expenseWhere,
-          _sum: {
-            amount: true,
-          },
-          _count: true,
-        }),
+      // Payment statistics
+      prisma.payment.aggregate({
+        where: {
+          schoolId,
+          status: "COMPLETED",
+          ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
+        },
+        _sum: {
+          amount: true,
+        },
+        _count: true,
+      }),
 
-        // Recent transactions (payments)
-        prisma.payment.findMany({
-          where: {
-            schoolId,
-            status: "COMPLETED",
-          },
-          include: {
-            student: {
-              select: {
-                name: true,
-                admission_number: true,
+      // Expense statistics
+      prisma.expense.aggregate({
+        where: expenseWhere,
+        _sum: {
+          amount: true,
+        },
+        _count: true,
+      }),
+
+      // Recent transactions (payments)
+      prisma.payment.findMany({
+        where: {
+          schoolId,
+          status: "COMPLETED",
+        },
+        include: {
+          studentInvoice: {
+            include: {
+              student: {
+                select: { name: true, admission_number: true },
+              },
+              invoice: {
+                select: { invoiceNumber: true, title: true },
               },
             },
-            invoice: {
-              select: {
-                invoiceNumber: true,
-                title: true,
-              },
-            },
           },
-          orderBy: { paidAt: "desc" },
-          take: 10,
-        }),
-      ]);
+        },
+        orderBy: { paidAt: "desc" },
+        take: 10,
+      }),
+    ]);
 
     // Calculate net income
     const totalRevenue = paymentStats._sum.amount || 0;
     const totalExpenses = expenseStats._sum.amount || 0;
     const netIncome = totalRevenue - totalExpenses;
 
-    // Invoice status breakdown
-    const invoiceStatusBreakdown = await prisma.invoice.groupBy({
+    // Invoice status breakdown (by StudentInvoice status)
+    const invoiceStatusBreakdown = await prisma.studentInvoice.groupBy({
       by: ["status"],
-      where: invoiceWhere,
+      where: { invoice: invoiceWhere },
       _count: true,
       _sum: {
         totalAmount: true,
@@ -1503,10 +1511,10 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       message: "Financial overview retrieved successfully",
       data: {
         summary: {
-          totalInvoices: invoiceStats._count,
-          totalInvoiceAmount: invoiceStats._sum.totalAmount || 0,
-          totalAmountPaid: invoiceStats._sum.amountPaid || 0,
-          totalAmountDue: invoiceStats._sum.amountDue || 0,
+          totalInvoices: invoiceCount,
+          totalInvoiceAmount: studentInvoiceStats._sum.totalAmount || 0,
+          totalAmountPaid: studentInvoiceStats._sum.amountPaid || 0,
+          totalAmountDue: studentInvoiceStats._sum.amountDue || 0,
           totalPayments: paymentStats._count,
           totalRevenue,
           totalExpenses,
@@ -1519,7 +1527,7 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching financial overview:", error);
+    logger.error({ err: error }, "Error fetching financial overview:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1561,57 +1569,61 @@ export const getStudentFinancialReport = async (
       return;
     }
 
-    const invoiceWhere: any = {
-      schoolId,
-      studentInvoices: {
-        some: {
-          studentId,
-        },
+    const siWhere: any = {
+      studentId,
+      invoice: {
+        schoolId,
+        ...(termId ? { termId } : {}),
+        ...(sessionId ? { sessionId } : {}),
       },
     };
-    if (termId) invoiceWhere.termId = termId;
-    if (sessionId) invoiceWhere.sessionId = sessionId;
 
-    const [invoices, payments] = await Promise.all([
-      prisma.invoice.findMany({
-        where: invoiceWhere,
+    const [studentInvoices, payments] = await Promise.all([
+      prisma.studentInvoice.findMany({
+        where: siWhere,
         include: {
-          invoiceItems: {
+          invoice: {
             include: {
-              feeCategory: true,
+              invoiceItems: { include: { feeCategory: true } },
+              term: true,
+              session: true,
             },
           },
-          term: true,
-          session: true,
+          payments: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { assignedAt: "desc" },
       }),
 
       prisma.payment.findMany({
         where: {
-          studentId,
           schoolId,
+          studentInvoice: {
+            studentId,
+            invoice: { schoolId },
+          },
         },
         include: {
-          invoice: {
+          studentInvoice: {
             select: {
-              invoiceNumber: true,
-              title: true,
+              invoice: {
+                select: { invoiceNumber: true, title: true },
+              },
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { paidAt: "desc" },
       }),
     ]);
 
     // Calculate totals
-    const totalInvoiceAmount = invoices.reduce(
-      (sum, inv) => sum + inv.totalAmount,
+    const totalInvoiceAmount = studentInvoices.reduce(
+      (sum, si) => sum + si.totalAmount,
       0
     );
-    const totalPaidAmount = payments
-      .filter((p) => p.status === "COMPLETED")
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalPaidAmount = studentInvoices.reduce(
+      (sum, si) => sum + si.amountPaid,
+      0
+    );
     const totalOutstanding = totalInvoiceAmount - totalPaidAmount;
 
     res.json({
@@ -1623,15 +1635,15 @@ export const getStudentFinancialReport = async (
           totalInvoiceAmount,
           totalPaidAmount,
           totalOutstanding,
-          invoiceCount: invoices.length,
+          invoiceCount: studentInvoices.length,
           paymentCount: payments.filter((p) => p.status === "COMPLETED").length,
         },
-        invoices,
+        invoices: studentInvoices.map((si) => si.invoice),
         payments,
       },
     });
   } catch (error) {
-    logger.error("Error fetching student financial report:", error);
+    logger.error({ err: error }, "Error fetching student financial report:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1671,36 +1683,29 @@ export const getPaymentReport = async (req: Request, res: Response) => {
       where: {
         ...where,
         ...(Object.keys(studentFilter).length > 0 && {
-          student: studentFilter,
+          studentInvoice: {
+            student: studentFilter,
+          },
         }),
       },
       include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            admission_number: true,
-            student_enrolled: {
-              where: { status: "enrolled" },
-              include: {
-                class: {
-                  select: {
-                    name: true,
-                  },
-                },
-                section: {
-                  select: {
-                    name: true,
+        studentInvoice: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                admission_number: true,
+                student_enrolled: {
+                  where: { status: "enrolled" },
+                  include: {
+                    class: { select: { name: true } },
+                    section: { select: { name: true } },
                   },
                 },
               },
             },
-          },
-        },
-        invoice: {
-          select: {
-            invoiceNumber: true,
-            title: true,
+            invoice: { select: { invoiceNumber: true, title: true } },
           },
         },
       },
@@ -1730,7 +1735,7 @@ export const getPaymentReport = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching payment report:", error);
+    logger.error({ err: error }, "Error fetching payment report:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1765,7 +1770,7 @@ export const handlePaymentWebhook = async (req: Request, res: Response) => {
       message: "Webhook received successfully",
     });
   } catch (error) {
-    logger.error("Error handling payment webhook:", error);
+    logger.error({ err: error }, "Error handling payment webhook:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
