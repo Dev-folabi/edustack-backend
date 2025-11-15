@@ -685,7 +685,6 @@ export const createPayment = async (req: Request, res: Response) => {
       studentInvoiceId,
       amount,
       paymentMethod,
-      transactionRef,
       schoolId,
     }: CreatePaymentRequest = req.body;
     const userId = (req as any).user;
@@ -729,11 +728,10 @@ export const createPayment = async (req: Request, res: Response) => {
       return;
     }
 
-    // Generate payment number
+    // Generate payment reference
     const paymentCount = await prisma.payment.count({ where: { schoolId } });
-    const paymentNumber = `PAY-${new Date().getFullYear()}-${String(
-      paymentCount + 1
-    ).padStart(6, "0")}`;
+    const paymentNumber = `PAY-${new Date().getFullYear()}-${String(paymentCount + 1).padStart(6, "0")}`;
+    const reference = `${paymentNumber}-${Date.now()}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create payment
@@ -743,7 +741,7 @@ export const createPayment = async (req: Request, res: Response) => {
           studentInvoiceId,
           amount,
           paymentMethod,
-          transactionRef,
+          transactionRef: reference,
           status: paymentMethod === "CASH" ? "COMPLETED" : "PENDING",
           paidAt: paymentMethod === "CASH" ? new Date() : null,
           schoolId,
@@ -796,10 +794,10 @@ export const createPayment = async (req: Request, res: Response) => {
 
 export const getPayments = async (req: Request, res: Response) => {
   try {
+    const { schoolId } = req.params;
     const {
       page = 1,
       limit = 10,
-      schoolId,
       status,
       studentInvoiceId,
       paymentMethod,
@@ -942,6 +940,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         data: {
           status,
           paidAt: status === "COMPLETED" ? new Date() : payment.paidAt,
+          updatedBy: userId,
         },
       });
 
@@ -1648,6 +1647,117 @@ export const getStudentFinancialReport = async (
       success: false,
       message: "Internal server error",
     });
+  }
+};
+
+// Get invoices assigned to a student
+export const getStudentInvoicesByStudentId = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { studentId, schoolId } = req.params;
+    const { page = 1, limit = 12, status } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+    const take = Number(limit);
+
+    // Ensure student exists and belongs to school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        student_enrolled: {
+          some: {
+            class: { schoolId },
+            status: "enrolled",
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!student) {
+      handleError(res, "Student not found or not enrolled in this school", 404);
+      return;
+    }
+
+    const where: any = {
+      studentId,
+      invoice: { schoolId },
+    };
+    if (status) where.status = status;
+
+    const [studentInvoices, total] = await Promise.all([
+      prisma.studentInvoice.findMany({
+        where,
+        include: {
+          invoice: {
+            include: {
+              invoiceItems: { include: { feeCategory: true } },
+              term: true,
+              session: true,
+            },
+          },
+        },
+        skip,
+        take,
+        orderBy: { assignedAt: "desc" },
+      }),
+      prisma.studentInvoice.count({ where }),
+    ]);
+
+   const studentInvoiceIds = studentInvoices.map((si) => si.id);
+
+   const payments =
+      studentInvoiceIds.length > 0
+        ? await prisma.payment.findMany({
+            where: { studentInvoiceId: { in: studentInvoiceIds } },
+            select: { studentInvoiceId: true, amount: true, status: true },
+          })
+        : [];
+
+    const paidMap: Record<string, number> = {};
+    payments.forEach((p: any) => {
+      if (p.status === "COMPLETED") {
+        paidMap[p.studentInvoiceId] =
+          (paidMap[p.studentInvoiceId] || 0) + (p.amount || 0);
+      }
+    });
+
+    const processed = studentInvoices.map((si: any) => {
+      const perStudentTotal = (si.invoice.invoiceItems || []).reduce(
+        (s: number, it: any) => s + (it.amount || 0),
+        0
+      );
+      const amountPaid = paidMap[si.id] || 0;
+      const amountDue = perStudentTotal - amountPaid;
+
+      let computedStatus = "UNPAID";
+      if (amountDue <= 0) computedStatus = "PAID";
+      else if (amountPaid > 0) computedStatus = "PARTIALLY_PAID";
+
+      return {
+        id: si.id,
+        assignedAt: si.assignedAt,
+        assignedBy: si.assignedBy,
+        invoice: si.invoice,
+        perStudentTotal,
+        amountPaid,
+        amountDue,
+        status: computedStatus,
+      };
+    });
+
+    res.json({
+      success: true,
+      message: "Student invoices retrieved successfully",
+      data: paginateResults(processed, Number(page), Number(limit), total),
+    });
+  } catch (error) {
+    logger.error(
+      { err: error },
+      "Error fetching student invoices by student id:"
+    );
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 

@@ -51,7 +51,7 @@ const updateOverdueInvoices = async () => {
   const result = await prisma.studentInvoice.updateMany({
     where: {
       status: {
-        in: ["UNPAID", "PARTIALLY_PAID"],
+        in: ["UNPAID"],
       },
       invoice: {
         dueDate: {
