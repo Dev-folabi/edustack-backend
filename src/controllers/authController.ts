@@ -757,7 +757,9 @@ export const userSignIn = async (
           },
         },
         staff: true,
-        student: true,
+        student: {
+          include: { student_enrolled: true },
+        },
         parent: true,
         password: true,
       },

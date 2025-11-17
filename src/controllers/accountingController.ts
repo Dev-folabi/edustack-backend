@@ -799,6 +799,7 @@ export const getPayments = async (req: Request, res: Response) => {
       page = 1,
       limit = 10,
       status,
+      studentId,
       studentInvoiceId,
       paymentMethod,
     } = req.query;
@@ -807,6 +808,7 @@ export const getPayments = async (req: Request, res: Response) => {
 
     const where: any = { schoolId };
     if (status) where.status = status;
+    if (studentId) where.studentInvoice = { studentId: String(studentId) };
     if (studentInvoiceId) where.studentInvoiceId = studentInvoiceId;
     if (paymentMethod) where.paymentMethod = paymentMethod;
 

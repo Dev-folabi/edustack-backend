@@ -45,7 +45,11 @@ import {
   handlePaymentWebhook,
   cancelStudentInvoice,
 } from "../../controllers/accountingController";
-import { FINANCE_ROLES, ADMIN_ROLES } from "../../config/constants";
+import {
+  FINANCE_ROLES,
+  ADMIN_ROLES,
+  STUDENT_ROLES,
+} from "../../config/constants";
 
 const router = Router();
 
@@ -149,15 +153,14 @@ router.post(
 router.get(
   "/payments/school/:schoolId",
   verifyToken,
-  roleAuthorization([...FINANCE_ROLES]),
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
   getPayments
 );
 
 router.get(
   "/payments/:id",
   verifyToken,
-  roleAuthorization([...FINANCE_ROLES]),
-
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
   getPaymentById
 );
 
@@ -257,7 +260,7 @@ router.get(
 router.get(
   "/student-invoices/student/:studentId/:schoolId",
   verifyToken,
-  roleAuthorization([...FINANCE_ROLES]),
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
 
   getStudentInvoicesByStudentId
 );
