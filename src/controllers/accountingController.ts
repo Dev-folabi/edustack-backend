@@ -1707,9 +1707,9 @@ export const getStudentInvoicesByStudentId = async (
       prisma.studentInvoice.count({ where }),
     ]);
 
-   const studentInvoiceIds = studentInvoices.map((si) => si.id);
+    const studentInvoiceIds = studentInvoices.map((si) => si.id);
 
-   const payments =
+    const payments =
       studentInvoiceIds.length > 0
         ? await prisma.payment.findMany({
             where: { studentInvoiceId: { in: studentInvoiceIds } },

@@ -758,9 +758,15 @@ export const userSignIn = async (
         },
         staff: true,
         student: {
-          include: { student_enrolled: true },
+          include: { student_enrolled: { where: { status: "enrolled" } } },
         },
-        parent: true,
+        parent: {
+          include: {
+            students: {
+              include: { student_enrolled: { where: { status: "enrolled" } } },
+            },
+          },
+        },
         password: true,
       },
     });

@@ -191,8 +191,13 @@ export const getClassTimetable = async (
 ) => {
   try {
     const { sectionId } = req.params;
+    const { status } = req.query;
+    const whereClause = { sectionId };
+    if (status) {
+      whereClause['status'] = status;
+    }
     const timetable = await prisma.timetable.findFirst({
-      where: { sectionId },
+      where: whereClause,
       include: {
         entries: {
           select: {
