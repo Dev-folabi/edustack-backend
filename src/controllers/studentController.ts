@@ -147,7 +147,7 @@ export const getStudentsBySchool = async (
         dob: student?.dob,
         phone: student?.phone,
         address: student?.address,
-        admissionDate: student?.admission_date,
+        admission_date: student?.admission_date,
         religion: student?.religion,
         bloodGroup: student?.blood_group,
         fatherName: student?.father_name,
@@ -1043,13 +1043,23 @@ export const updateStudent = async (
       return handleError(res, "Student not found", 404);
     }
 
-    const { email, password, ...studentData } = req.body;
+    const { email, password, username, ...studentData } = req.body;
 
     const userUpdateData: any = {};
     const studentUpdateData: any = {};
 
+    if (username !== undefined && username !== existingStudent.user.username) {
+      const existingUser = await prisma.user.findUnique({
+        where: { username },
+      });
+      if (existingUser) {
+        return handleError(res, "Username already exists", 400);
+      }
+    }
+
     Object.assign(userUpdateData, {
       ...(email !== undefined && { email }),
+      ...(username !== undefined && { username }),
       ...(password !== undefined && {
         password: await bcrypt.hash(password, 10),
       }),
