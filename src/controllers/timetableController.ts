@@ -194,7 +194,7 @@ export const getClassTimetable = async (
     const { status } = req.query;
     const whereClause = { sectionId };
     if (status) {
-      whereClause['status'] = status;
+      whereClause["status"] = status;
     }
     const timetable = await prisma.timetable.findFirst({
       where: whereClause,
@@ -563,7 +563,7 @@ export const updateTimetable = async (
 ) => {
   try {
     const { timetableId } = req.params;
-    const { schoolId, classId, sectionId, sessionId, termId, status,  } =
+    const { schoolId, classId, sectionId, sessionId, termId, status } =
       req.body;
 
     // Check if timetable exists

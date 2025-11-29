@@ -32,6 +32,7 @@ model School {
   subjects           SubjectSchool[]
   timetables         Timetable[]
   userSchools        UserSchool[]
+  students           Student[]
 }
 
 model UserSchool {
@@ -68,7 +69,8 @@ model User {
 model Student {
   id                           String                         @id @default(cuid())
   userId                       String                         @unique
-  admission_number             Int?                           @unique @default(autoincrement())
+  admission_number             String?
+  schoolId                     String?
   name                         String
   gender                       Gender
   dob                          DateTime
@@ -100,10 +102,13 @@ model Student {
   Result                       Result[]
   parent                       Parent                         @relation(fields: [parentId], references: [id])
   user                         User                           @relation(fields: [userId], references: [id])
+  school                       School?                        @relation(fields: [schoolId], references: [id])
   student_enrolled             StudentEnrollment[]
   studentInvoices              StudentInvoice[]
   StudentPsychomotorAssessment StudentPsychomotorAssessment[]
   student_transfer             StudentTransfer[]
+
+  @@unique([schoolId, admission_number])
 }
 
 model Staff {
