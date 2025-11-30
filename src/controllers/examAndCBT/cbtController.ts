@@ -51,7 +51,10 @@ export const startExamAttempt = async (
     }
 
     const now = new Date();
-    if (now < examPaper.startTime || now > examPaper.endTime) {
+    const startTime = new Date(examPaper.startTime);
+    const endTime = new Date(examPaper.endTime);
+
+    if (now < startTime || now > endTime) {
       return handleError(res, "This exam is not currently active.", 400);
     }
 
@@ -341,13 +344,6 @@ export const saveExamResponse = async (
     }
 
     const now = new Date();
-    if (now > attempt.examPaper.endTime) {
-      return handleError(
-        res,
-        "Exam time is over. Cannot save new answers.",
-        400
-      );
-    }
 
     // Process all responses in a transaction
     const savedResponses = await prisma.$transaction(

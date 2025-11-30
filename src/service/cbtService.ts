@@ -1,6 +1,5 @@
 import prisma from "../prisma";
 import logger from "../utils/logger";
-import { submitExamAttempt } from "../controllers/examAndCBT/cbtController";
 
 export const autoSubmitCbtExams = async () => {
   try {
@@ -24,11 +23,11 @@ export const autoSubmitCbtExams = async () => {
     for (const attempt of inProgressExams) {
       const { examPaper } = attempt;
       const gracePeriod = 10 * 60 * 1000; // 10 minutes in milliseconds
-      const submissionTime = new Date(
-        examPaper.endTime.getTime() + gracePeriod
-      );
+      const endTime = new Date(examPaper.endTime);
+      const submissionTime = new Date(endTime.getTime() + gracePeriod);
+      const now = new Date();
 
-      if (new Date() > submissionTime) {
+      if (now > submissionTime) {
         const responses = await prisma.examResponse.findMany({
           where: { attemptId: attempt.id },
           include: { question: true },

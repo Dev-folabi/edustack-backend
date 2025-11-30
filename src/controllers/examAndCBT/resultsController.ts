@@ -236,11 +236,7 @@ export const finalizeCbtResults = async (
     });
 
     if (!attempts.length) {
-      return handleError(
-        res,
-        "No submitted attempts found to finalize for this exam paper.",
-        404
-      );
+      return handleError(res, "CBT results finalized successfully.", 200);
     }
 
     const resultsToCreate = [] as any;
