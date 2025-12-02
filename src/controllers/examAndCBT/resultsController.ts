@@ -5,7 +5,9 @@ import logger from "../../utils/logger";
 import { getStaffInfoFromRequest } from "../../function/schoolFunctions";
 
 /**
- * Add or update marks for multiple students for a single exam paper and optionally psychomotor assessments.
+ * Add or update marks for multiple students for a single exam paper (both paper-based and CBT)
+ * and optionally psychomotor assessments.
+ * This function allows teachers to override CBT auto-graded scores or add/edit paper-based results.
  * @route POST /api/results/manual-entry
  */
 export const addManualMarks = async (
@@ -215,6 +217,8 @@ export const addTermRemarks = async (
 /**
  * Finalize the results for a CBT exam paper after all manual grading is complete.
  * This transfers the final scores from ExamAttempt to the main Result table.
+ * Can be run multiple times to update results if needed (uses upsert).
+ * For bulk manual override of individual student scores, use the /api/results/manual-entry endpoint.
  * @route POST /api/results/finalize-cbt/:examPaperId
  */
 export const finalizeCbtResults = async (
@@ -239,7 +243,7 @@ export const finalizeCbtResults = async (
       return handleError(res, "CBT results finalized successfully.", 200);
     }
 
-    const resultsToCreate = [] as any;
+    const resultUpserts = [] as any;
     const attemptsToUpdate = [] as any;
 
     for (const attempt of attempts) {
@@ -254,11 +258,25 @@ export const finalizeCbtResults = async (
         );
       }
 
-      resultsToCreate.push({
-        studentId: attempt.studentId,
-        examPaperId: attempt.examPaperId,
-        marksObtained: attempt.totalScore || 0,
-      });
+
+      resultUpserts.push(
+        prisma.result.upsert({
+          where: {
+            studentId_examPaperId: {
+              studentId: attempt.studentId,
+              examPaperId: attempt.examPaperId,
+            },
+          },
+          update: {
+            marksObtained: attempt.totalScore || 0,
+          },
+          create: {
+            studentId: attempt.studentId,
+            examPaperId: attempt.examPaperId,
+            marksObtained: attempt.totalScore || 0,
+          },
+        })
+      );
 
       attemptsToUpdate.push(
         prisma.examAttempt.update({
@@ -268,22 +286,16 @@ export const finalizeCbtResults = async (
       );
     }
 
-    await prisma.$transaction([
-      prisma.result.createMany({
-        data: resultsToCreate,
-        skipDuplicates: true,
-      }),
-      ...attemptsToUpdate,
-    ]);
+    await prisma.$transaction([...resultUpserts, ...attemptsToUpdate]);
 
     logger.info(
-      { examPaperId, count: resultsToCreate.length },
+      { examPaperId, count: resultUpserts.length },
       "CBT results finalized successfully."
     );
 
     res.status(200).json({
       success: true,
-      message: `${resultsToCreate.length} CBT result(s) have been finalized.`,
+      message: `${resultUpserts.length} CBT result(s) have been finalized.`,
     });
   } catch (error) {
     logger.error(error, "Failed to finalize CBT results");

@@ -417,6 +417,7 @@ model GlobalExamSettings {
   enablePsychomotor  Boolean  @default(false)
   showSchoolRemarks  Boolean  @default(true)
   showTeacherRemarks Boolean  @default(true)
+  enablePosition     Boolean  @default(true)
   passMark           Float    @default(40)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

@@ -60,6 +60,7 @@ export const generateStudentTermReport = async (
       classSize,
       schoolBills,
       schoolDays,
+      examSettings,
     ] = await Promise.all([
       // Academic results
       prisma.result.findMany({
@@ -120,15 +121,27 @@ export const generateStudentTermReport = async (
           studentId: studentId as string,
           invoice: { termId: termId as string, sessionId: sessionId as string },
         },
-        include: { invoice: { include: { invoiceItems: true } } },
+        include: {
+          invoice: {
+            include: {
+              invoiceItems: { include: { feeCategory: true } },
+            },
+          },
+        },
       }),
       // Total number of school days in the term (unique dates)
-      prisma.attendance.groupBy({
-        by: ["date"],
-        where: {
-          sectionId: section.id,
-          date: { gte: term?.start_date, lte: term?.end_date },
-        },
+      prisma.attendance
+        .groupBy({
+          by: ["date"],
+          where: {
+            sectionId: section.id,
+            date: { gte: term?.start_date, lte: term?.end_date },
+          },
+        })
+        .then((days) => days.length),
+      // School's exam settings
+      prisma.globalExamSettings.findUnique({
+        where: { schoolId: school.id },
       }),
     ]);
 
@@ -178,22 +191,57 @@ export const generateStudentTermReport = async (
       grandTotalMaxMarks > 0
         ? (grandTotalMarksObtained / grandTotalMaxMarks) * 100
         : 0;
-    const overallGrade = gradeCriteria.find(
-      (g) => overallPercentage >= g.minScore && overallPercentage <= g.maxScore
-    );
+
+    // Calculate student position in class for the term
+    const classStudentsResults = await prisma.result.groupBy({
+      by: ["studentId"],
+      where: {
+        examPaper: {
+          exam: {
+            termId: termId as string,
+            sessionId: sessionId as string,
+          },
+        },
+        student: {
+          student_enrolled: {
+            some: {
+              classId: studentClass.id,
+              sectionId: section.id,
+              sessionId: sessionId as string,
+            },
+          },
+        },
+      },
+      _sum: {
+        marksObtained: true,
+      },
+    });
+
+    // Sort by total marks in descending order
+    const sortedStudents = classStudentsResults
+      .map((s) => ({
+        studentId: s.studentId,
+        totalMarks: s._sum.marksObtained || 0,
+      }))
+      .sort((a, b) => b.totalMarks - a.totalMarks);
+
+    // Find current student's position
+    const studentPosition =
+      sortedStudents.findIndex((s) => s.studentId === studentId) + 1;
 
     // Process attendance
     const attendance = {
       timesSchoolOpened: schoolDays,
       timesPresent:
-        attendanceCounts.find((a) => a.status === "PRESENT")?._count.status ||
-        0,
+        attendanceCounts.find(
+          (a) => a.status === "PRESENT" || a.status === "LATE"
+        )?._count.status || 0,
       timesAbsent:
         attendanceCounts.find((a) => a.status === "ABSENT")?._count.status || 0,
     };
 
-    // 4. Construct the final report card object
-    const reportCard = {
+    // 4. Construct the final report card object based on school settings
+    const reportCard: any = {
       schoolInfo: {
         name: school.name,
         address: school.address,
@@ -207,7 +255,6 @@ export const generateStudentTermReport = async (
         class: studentClass.name,
         section: section.name,
         gender: student.gender,
-        dob: student.dob,
       },
       termInfo: {
         session: session.name,
@@ -223,29 +270,52 @@ export const generateStudentTermReport = async (
           totalMarks: grandTotalMarksObtained,
           maxMarks: grandTotalMaxMarks,
           percentage: parseFloat(overallPercentage.toFixed(2)),
-          grade: overallGrade ? overallGrade.name : "N/A",
+          ...(examSettings?.enablePosition && {
+            position: studentPosition > 0 ? studentPosition : "N/A",
+          }),
         },
       },
       attendance: {
         present: attendance.timesPresent,
         absent: attendance.timesAbsent,
       },
-      affectiveTraits: psychomotorAssessments.map((skill) => ({
+      schoolBills: schoolBills
+        .flatMap((sb) =>
+          sb.invoice.invoiceItems.map((item) => ({
+            name: item.description || item.feeCategory.name,
+            amount: item.amount,
+          }))
+        )
+        .filter((bill) => bill.name),
+      gradingScale: gradeCriteria
+        .map((criteria) => ({
+          grade: criteria.name,
+          minScore: criteria.minScore,
+          maxScore: criteria.maxScore,
+          remark: criteria.remark,
+        }))
+        .sort((a, b) => b.minScore - a.minScore),
+    };
+
+    if (examSettings?.enablePsychomotor) {
+      reportCard.affectiveTraits = psychomotorAssessments.map((skill) => ({
         name: skill.name,
         rating:
           skill.assessments.length > 0 ? skill.assessments[0].rating : null,
-      })),
-      schoolBills: schoolBills.flatMap((sb) =>
-        sb.invoice.invoiceItems.map((item) => ({
-          name: item.description,
-          amount: item.amount,
-        }))
-      ),
-      remarks: {
-        teacher: enrollment.classTeacherRemark,
-        principal: enrollment.schoolHeadRemark,
-      },
-    };
+      }));
+    }
+
+    const remarks: any = {};
+    if (examSettings?.showTeacherRemarks) {
+      remarks.teacher = enrollment.classTeacherRemark;
+    }
+    if (examSettings?.showSchoolRemarks) {
+      remarks.principal = enrollment.schoolHeadRemark;
+    }
+
+    if (Object.keys(remarks).length > 0) {
+      reportCard.remarks = remarks;
+    }
 
     res.status(200).json({
       success: true,
