@@ -8,6 +8,7 @@ import { paginateResults } from "../function/pagination";
 import logger from "../utils/logger";
 import { MAX_SCHOOL_CREATION_LIMIT } from "../config/constants";
 import { Prisma } from "@prisma/client";
+import { SchoolDashboardQuery } from "../types/requests/schoolDashboard";
 
 /**
  * Creates a new school.
@@ -464,6 +465,399 @@ export const deleteSchool = async (
       message: "School deleted successfully.",
     });
   } catch (error: any) {
+    next(error);
+  }
+};
+
+/**
+ * Retrieves comprehensive dashboard data for a school.
+ * @route GET /api/school/dashboard/:schoolId
+ */
+export const getSchoolDashboard = async (
+  req: Request<{ schoolId: string }, {}, {}, SchoolDashboardQuery>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { schoolId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    // Verify school exists
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+    });
+
+    if (!school) {
+      return handleError(res, "School not found.", 404);
+    }
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+
+    // Get current date for attendance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Parallel data fetching
+    const [
+      totalStudents,
+      activeStudents,
+      totalStaff,
+      activeStaff,
+      totalClasses,
+      totalSections,
+      currentSession,
+      currentTerm,
+      studentsByGender,
+      studentsByClass,
+      staffByRole,
+      staffByGender,
+      recentAdmissions,
+      invoiceStats,
+      paymentStats,
+      expenseStats,
+      todayAttendance,
+      examStats,
+    ] = await Promise.all([
+      // Student metrics
+      prisma.student.count({ where: { schoolId } }),
+      prisma.student.count({ where: { schoolId, isActive: true } }),
+
+      // Staff metrics
+      prisma.userSchool.count({ where: { schoolId } }),
+      prisma.userSchool.count({
+        where: { schoolId, user: { staff: { isActive: true } } },
+      }),
+
+      // Classes and sections
+      prisma.classes.count({ where: { schoolId } }),
+      prisma.class_Section.count({
+        where: { classes: { schoolId } },
+      }),
+
+      // Current session
+      prisma.session.findFirst({
+        where: { schoolId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          start_date: true,
+          end_date: true,
+          isActive: true,
+        },
+      }),
+
+      // Current term
+      prisma.term.findFirst({
+        where: {
+          session: { schoolId, isActive: true },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          start_date: true,
+          end_date: true,
+          isActive: true,
+        },
+      }),
+
+      // Students by gender
+      prisma.student.groupBy({
+        by: ["gender"],
+        where: { schoolId, isActive: true },
+        _count: true,
+      }),
+
+      // Students by class
+      prisma.classes.findMany({
+        where: { schoolId },
+        select: {
+          id: true,
+          name: true,
+          sections: {
+            select: {
+              id: true,
+              name: true,
+              student_enrolled: {
+                where: { status: "enrolled" },
+                select: { studentId: true },
+              },
+            },
+          },
+        },
+      }),
+
+      // Staff by role
+      prisma.userSchool.groupBy({
+        by: ["role"],
+        where: { schoolId },
+        _count: true,
+      }),
+
+      // Staff by gender
+      prisma.staff.groupBy({
+        by: ["gender"],
+        where: {
+          user: { userSchools: { some: { schoolId } } },
+          isActive: true,
+        },
+        _count: true,
+      }),
+
+      // Recent admissions
+      prisma.student.findMany({
+        where: { schoolId },
+        select: {
+          id: true,
+          name: true,
+          admission_number: true,
+          admission_date: true,
+          gender: true,
+          photo_url: true,
+          student_enrolled: {
+            where: { status: "enrolled" },
+            take: 1,
+            select: {
+              class: { select: { id: true, name: true } },
+              section: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { admission_date: "desc" },
+        take: 10,
+      }),
+
+      // Invoice statistics
+      prisma.studentInvoice.aggregate({
+        where: {
+          invoice: {
+            schoolId,
+            ...(Object.keys(dateFilter).length > 0 && {
+              createdAt: dateFilter,
+            }),
+          },
+        },
+        _sum: {
+          totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
+        },
+        _count: true,
+      }),
+
+      // Payment statistics
+      prisma.payment.aggregate({
+        where: {
+          schoolId,
+          status: "COMPLETED",
+          ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
+        },
+        _sum: { amount: true },
+      }),
+
+      // Expense statistics
+      prisma.expense.aggregate({
+        where: {
+          schoolId,
+          ...(Object.keys(dateFilter).length > 0 && {
+            expenseDate: dateFilter,
+          }),
+        },
+        _sum: { amount: true },
+      }),
+
+      // Today's attendance
+      prisma.attendance.groupBy({
+        by: ["status"],
+        where: {
+          attendanceType: "STUDENT",
+          date: {
+            gte: today,
+            lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+          },
+          student: { schoolId },
+        },
+        _count: true,
+      }),
+
+      // Exam statistics
+      prisma.exam.findMany({
+        where: { schoolId },
+        select: {
+          id: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          papers: {
+            select: {
+              isResultPublished: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Process students by class
+    const classByData = studentsByClass.map((cls) => {
+      const sections = cls.sections.map((section) => ({
+        sectionId: section.id,
+        sectionName: section.name,
+        studentCount: section.student_enrolled.length,
+      }));
+
+      return {
+        classId: cls.id,
+        className: cls.name,
+        studentCount: sections.reduce((sum, s) => sum + s.studentCount, 0),
+        sections,
+      };
+    });
+
+    // Process exam statistics
+    const now = new Date();
+    let upcomingExams = 0;
+    let ongoingExams = 0;
+    let completedExams = 0;
+    let pendingResults = 0;
+
+    examStats.forEach((exam) => {
+      const examStart = new Date(exam.startDate);
+      const examEnd = new Date(exam.endDate);
+
+      if (now < examStart) {
+        upcomingExams++;
+      } else if (now >= examStart && now <= examEnd) {
+        ongoingExams++;
+      } else {
+        completedExams++;
+        // Check if results are pending
+        const hasUnpublishedResults = exam.papers.some(
+          (paper) => !paper.isResultPublished
+        );
+        if (hasUnpublishedResults) {
+          pendingResults++;
+        }
+      }
+    });
+
+    // Calculate attendance metrics
+    const todayPresent =
+      todayAttendance.find((a) => a.status === "PRESENT")?._count || 0;
+    const todayAbsent =
+      todayAttendance.find((a) => a.status === "ABSENT")?._count || 0;
+    const todayTotal = todayPresent + todayAbsent;
+    const attendanceRate = todayTotal > 0 ? (todayPresent / todayTotal) * 100 : 0;
+
+    // Calculate financial metrics
+    const totalRevenue = paymentStats._sum.amount || 0;
+    const totalExpenses = expenseStats._sum.amount || 0;
+    const netIncome = totalRevenue - totalExpenses;
+    const totalInvoiceAmount = invoiceStats._sum.totalAmount || 0;
+    const totalAmountPaid = invoiceStats._sum.amountPaid || 0;
+    const totalAmountDue = invoiceStats._sum.amountDue || 0;
+    const collectionRate =
+      totalInvoiceAmount > 0 ? (totalAmountPaid / totalInvoiceAmount) * 100 : 0;
+
+    // Format response
+    const dashboardData = {
+      overview: {
+        totalStudents,
+        activeStudents,
+        totalStaff,
+        activeStaff,
+        totalClasses,
+        totalSections,
+      },
+      academicInfo: {
+        currentSession: currentSession
+          ? {
+              id: currentSession.id,
+              name: currentSession.name,
+              start_date: currentSession.start_date.toISOString(),
+              end_date: currentSession.end_date.toISOString(),
+              isActive: currentSession.isActive,
+            }
+          : null,
+        currentTerm: currentTerm
+          ? {
+              id: currentTerm.id,
+              name: currentTerm.name,
+              start_date: currentTerm.start_date.toISOString(),
+              end_date: currentTerm.end_date.toISOString(),
+              isActive: currentTerm.isActive,
+            }
+          : null,
+      },
+      financialSummary: {
+        totalRevenue,
+        totalExpenses,
+        netIncome,
+        totalInvoices: invoiceStats._count,
+        totalInvoiceAmount,
+        totalAmountPaid,
+        totalAmountDue,
+        collectionRate: Math.round(collectionRate * 100) / 100,
+      },
+      studentBreakdown: {
+        byGender: studentsByGender.map((g) => ({
+          gender: g.gender,
+          count: g._count,
+        })),
+        byClass: classByData,
+      },
+      staffBreakdown: {
+        byRole: staffByRole.map((r) => ({
+          role: r.role,
+          count: r._count,
+        })),
+        byGender: staffByGender
+          .filter((g) => g.gender !== null)
+          .map((g) => ({
+            gender: g.gender!,
+            count: g._count,
+          })),
+      },
+      recentAdmissions: recentAdmissions.map((student) => ({
+        id: student.id,
+        name: student.name,
+        admissionNumber: student.admission_number,
+        admission_date: student.admission_date.toISOString(),
+        gender: student.gender,
+        class: student.student_enrolled[0]?.class || null,
+        section: student.student_enrolled[0]?.section || null,
+        photo_url: student.photo_url,
+      })),
+      upcomingEvents: [],
+      examinations: {
+        upcomingExams,
+        ongoingExams,
+        completedExams,
+        pendingResults,
+      },
+      attendance: {
+        todayPresent,
+        todayAbsent,
+        todayTotal,
+        attendanceRate: Math.round(attendanceRate * 100) / 100,
+        lastUpdated: new Date().toISOString(),
+      },
+    };
+
+    logger.info(
+      { schoolId },
+      "School dashboard data retrieved successfully."
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "School dashboard data retrieved successfully",
+      data: dashboardData,
+    });
+  } catch (error: any) {
+    logger.error({ err: error }, "Error fetching school dashboard:");
     next(error);
   }
 };
