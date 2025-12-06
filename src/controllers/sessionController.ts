@@ -5,6 +5,7 @@ import { handleError } from "../error/errorHandler";
 import { paginateResults } from "../function/pagination";
 import logger from "../utils/logger";
 import { Prisma } from "@prisma/client";
+import { getSchoolIdFromRequest } from "../function/schoolFunctions";
 
 /**
  * Creates a new academic session along with its associated terms.
@@ -22,6 +23,10 @@ export const createSessionWithTerms = async (
 ) => {
   try {
     const { name, start_date, end_date, isActive, terms } = req.body;
+
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return; // Error already handled by helper
 
     // Validate session dates
     if (new Date(start_date) >= new Date(end_date)) {
@@ -55,14 +60,15 @@ export const createSessionWithTerms = async (
     // Perform operations within a transaction for atomicity.
     const result = await prisma.$transaction(async (tx) => {
       if (isActive) {
+        // Only deactivate sessions for the same school
         const updatedSessions = await tx.session.updateMany({
-          where: { isActive: true },
+          where: { isActive: true, schoolId },
           data: { isActive: false },
         });
         if (updatedSessions.count > 0) {
           logger.info(
-            { deactivatedCount: updatedSessions.count },
-            "Deactivated existing active sessions."
+            { deactivatedCount: updatedSessions.count, schoolId },
+            "Deactivated existing active sessions for this school."
           );
         }
       }
@@ -71,6 +77,7 @@ export const createSessionWithTerms = async (
       const session = await tx.session.create({
         data: {
           name,
+          schoolId,
           start_date: new Date(start_date),
           end_date: new Date(end_date),
           isActive,
@@ -135,16 +142,20 @@ export const getSession = async (
   next: NextFunction
 ) => {
   try {
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return;
+
     // findFirst is more appropriate if only one active session is expected.
     const activeSession = await prisma.session.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, schoolId },
       include: {
         terms: { orderBy: { start_date: "asc" } }, // Order terms by start date
       },
     });
 
     if (!activeSession) {
-      logger.info("No active session found.");
+      logger.info({ schoolId }, "No active session found for this school.");
       res.status(200).json({
         success: true,
         message: "No active session found.",
@@ -179,7 +190,12 @@ export const getAllSessions = async (
     const page = parseInt(req.query?.page as string, 10) || 1;
     const limit = parseInt(req.query?.limit as string, 10) || 10;
 
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return;
+
     const sessions = await prisma.session.findMany({
+      where: { schoolId },
       include: {
         terms: { orderBy: { start_date: "asc" } },
       },
@@ -190,7 +206,7 @@ export const getAllSessions = async (
       take: limit,
     });
 
-    const totalRecords = await prisma.session.count();
+    const totalRecords = await prisma.session.count({ where: { schoolId } });
 
     res.status(200).json({
       success: true,
@@ -216,15 +232,24 @@ export const getSessionById = async (
 ) => {
   try {
     const sessionId = req.params.id;
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return;
+
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, schoolId },
       include: {
         terms: { orderBy: { start_date: "asc" } },
       },
     });
 
     if (!session) {
-      return handleError(res, "Session doesn't exist.", 404);
+      return handleError(
+        res,
+        "Session doesn't exist or doesn't belong to your school.",
+        404
+      );
     }
 
     res.status(200).json({
@@ -255,6 +280,10 @@ export const updateSessionWithTerms = async (
     const { name, start_date, end_date, isActive, terms } = req.body;
     const sessionId = req.params.id;
 
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return;
+
     // Validate session dates if both are provided for update
     if (start_date && end_date && new Date(start_date) >= new Date(end_date)) {
       return handleError(
@@ -281,22 +310,25 @@ export const updateSessionWithTerms = async (
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const existingSession = await tx.session.findUnique({
-        where: { id: sessionId },
+      const existingSession = await tx.session.findFirst({
+        where: { id: sessionId, schoolId },
       });
       if (!existingSession) {
-        throw new Error("Session to update not found.");
+        throw new Error(
+          "Session to update not found or doesn't belong to your school."
+        );
       }
 
       // If this session is being set to active AND it's not already active.
       if (isActive === true && !existingSession.isActive) {
+        // Only deactivate sessions for the same school
         await tx.session.updateMany({
-          where: { isActive: true, NOT: { id: sessionId } },
+          where: { isActive: true, schoolId, NOT: { id: sessionId } },
           data: { isActive: false },
         });
         logger.info(
-          { newlyActivatedSessionId: sessionId },
-          "Deactivated other active sessions during update."
+          { newlyActivatedSessionId: sessionId, schoolId },
+          "Deactivated other active sessions for this school during update."
         );
       }
 
@@ -388,17 +420,29 @@ export const deleteSession = async (
 ) => {
   try {
     const sessionId = req.params.id;
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+
+    // Get schoolId from request
+    const schoolId = await getSchoolIdFromRequest(req, res);
+    if (!schoolId) return;
+
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, schoolId },
     });
 
     if (!session) {
-      return handleError(res, "Session doesn't exist.", 404);
+      return handleError(
+        res,
+        "Session doesn't exist or doesn't belong to your school.",
+        404
+      );
     }
 
     // Prevent deletion of an active session. It must be deactivated first.
     if (session.isActive) {
-      logger.warn({ sessionId }, "Attempt to delete active session denied.");
+      logger.warn(
+        { sessionId, schoolId },
+        "Attempt to delete active session denied."
+      );
       return handleError(
         res,
         "Cannot delete an active session. Deactivate it first.",

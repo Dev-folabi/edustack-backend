@@ -28,7 +28,7 @@ const router = express.Router();
  */
 router.post(
   "/",
-  roleAuthorization(["super_admin"]),
+  roleAuthorization(["super_admin", "admin"]),
   validateCreateSession,
   createSessionWithTerms
 );
@@ -76,7 +76,7 @@ router.get("/:id", getSessionById);
  */
 router.put(
   "/:id",
-  roleAuthorization(["super_admin"]),
+  roleAuthorization(["super_admin", "admin"]),
   validateUpdateSession,
   updateSessionWithTerms
 );
@@ -89,7 +89,7 @@ router.put(
  */
 router.delete(
   "/:id",
-  roleAuthorization(["super_admin"]),
+  roleAuthorization(["super_admin", "admin"]),
   validateDeleteSession,
   deleteSession
 );
@@ -102,7 +102,7 @@ router.delete(
  */
 router.delete(
   "/term/:id",
-  roleAuthorization(["super_admin"]),
+  roleAuthorization(["super_admin", "admin"]),
   validateDeleteTerm,
   deleteTerm
 );

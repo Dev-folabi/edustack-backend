@@ -780,7 +780,7 @@ const _validateTransferPrerequisitesAndGetContext = async (
       },
     };
 
-  const activeSession = await findActiveSession(res);
+  const activeSession = await findActiveSession(res, toSchoolId);
 
   if (!activeSession)
     return {

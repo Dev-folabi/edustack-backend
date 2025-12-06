@@ -40,9 +40,9 @@ export const findClassWithSections = async (classId: string, res: Response) => {
   return classInfo;
 };
 
-export const findActiveSession = async (res: Response) => {
+export const findActiveSession = async (res: Response, schoolId: string) => {
   const session = await prisma.session.findFirst({
-    where: { isActive: true },
+    where: { isActive: true, schoolId },
     include: { terms: true },
   });
   if (!session) return handleError(res, "No active session found", 400);
@@ -112,15 +112,30 @@ export const getStaffInfoFromRequest = async (req: Request, res: Response) => {
     return null;
   }
 
-  return { 
-  role: isAdmin ? "ADMIN" : "STAFF",
-  staffId: staffInfo?.id,
-  userId
-};
-
+  return {
+    role: isAdmin ? "ADMIN" : "STAFF",
+    staffId: staffInfo?.id,
+    userId,
+  };
 };
 
 export const getSchoolIdFromRequest = async (req: Request, res: Response) => {
+  // Check if schoolId is provided in request body or query parameters
+  const requestSchoolId = (req.body?.schoolId || req.query?.schoolId) as
+    | string
+    | undefined;
+
+  if (requestSchoolId) {
+    // Validate that the provided schoolId exists
+    const school = await validateSchool(requestSchoolId);
+    if (!school) {
+      handleError(res, "Invalid schoolId: School not found.", 404);
+      return null;
+    }
+    return requestSchoolId;
+  }
+
+  // Fall back to user's school
   const userId = getIdFromToken(req);
   if (!userId) {
     handleError(res, "Unauthorized: User ID not found in token.", 401);

@@ -221,6 +221,21 @@ export const getAllSchools = async (
     const schools = await prisma.school.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
+      include: {
+        userSchools: {
+          where: { role: "admin" },
+          select: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                staff: { select: { id: true, name: true } },
+                student: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
     const totalRecords = await prisma.school.count({ where: whereClause });
@@ -294,11 +309,12 @@ export const updateSchool = async (
     if (!userId) {
       return handleError(
         res,
-        "User ID not found on request. Authorization middleware may not have run.",
+        "Unauthorized: User ID not found on request.",
         500
       );
     }
     const { id: schoolId } = req.params;
+    const { adminId, ...rest } = req.body;
 
     if (req.body.name) {
       const existingSchoolWithSameName = await prisma.school.findFirst({
@@ -330,25 +346,25 @@ export const updateSchool = async (
 
     const updatedSchool = await prisma.school.update({
       where: { id: schoolId },
-      data: req.body,
+      data: rest,
     });
     logger.info(
       { schoolId, updatedBy: userId, updatedFields: Object.keys(req.body) },
       "School updated successfully."
     );
 
-    if (req.body.adminId) {
-      if (req.body.adminId !== userId) {
+    if (adminId) {
+      if (adminId !== userId) {
         const adminUserExists = await prisma.user.findUnique({
-          where: { id: req.body.adminId },
+          where: { id: adminId },
           select: { id: true },
         });
         if (adminUserExists) {
           await prisma.userSchool.create({
-            data: { userId: req.body.adminId, schoolId, role: "admin" },
+            data: { userId: adminId, schoolId, role: "admin" },
           });
           logger.info(
-            { schoolId, adminIdLinked: req.body.adminId },
+            { schoolId, adminIdLinked: adminId },
             "Additional admin linked to new school."
           );
         } else {

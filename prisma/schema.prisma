@@ -27,6 +27,7 @@ model School {
   payments           Payment[]
   paymentGateways    PaymentGateway[]
   PsychomotorSkill   PsychomotorSkill[]
+  sessions           Session[]
   fromTransfers      StudentTransfer[]   @relation("FromSchoolRelation")
   toTransfers        StudentTransfer[]   @relation("ToSchoolRelation")
   subjects           SubjectSchool[]
@@ -154,12 +155,14 @@ model Parent {
 
 model Session {
   id                           String                         @id @default(cuid())
-  name                         String                         @unique
+  name                         String
+  schoolId                     String
   start_date                   DateTime
   end_date                     DateTime
   isActive                     Boolean                        @default(false)
   createdAt                    DateTime                       @default(now())
   updatedAt                    DateTime                       @updatedAt
+  school                       School                         @relation(fields: [schoolId], references: [id])
   Exam                         Exam[]
   ExamTimetable                ExamTimetable[]
   invoices                     Invoice[]
@@ -168,6 +171,8 @@ model Session {
   StudentPsychomotorAssessment StudentPsychomotorAssessment[]
   terms                        Term[]
   timetables                   Timetable[]
+
+  @@unique([name, schoolId])
 }
 
 model Term {

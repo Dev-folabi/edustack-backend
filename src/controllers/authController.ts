@@ -638,7 +638,7 @@ export const studentSignUp = async (
     if (!section)
       return handleError(res, "Section not found in the specified class.", 404);
 
-    const activeSession = await findActiveSession(res);
+    const activeSession = await findActiveSession(res, school.id);
     if (!activeSession) return handleError(res, "No active session found", 400);
 
     const activeTerm = activeSession.terms.find((term) => term.isActive);
