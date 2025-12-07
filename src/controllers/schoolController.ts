@@ -526,7 +526,9 @@ export const getSchoolDashboard = async (
       prisma.student.count({ where: { schoolId, isActive: true } }),
 
       // Staff metrics
-      prisma.userSchool.count({ where: { schoolId } }),
+      prisma.userSchool.count({
+        where: { schoolId, user: { staff: { isNot: null } } },
+      }),
       prisma.userSchool.count({
         where: { schoolId, user: { staff: { isActive: true } } },
       }),
@@ -749,7 +751,8 @@ export const getSchoolDashboard = async (
     const todayAbsent =
       todayAttendance.find((a) => a.status === "ABSENT")?._count || 0;
     const todayTotal = todayPresent + todayAbsent;
-    const attendanceRate = todayTotal > 0 ? (todayPresent / todayTotal) * 100 : 0;
+    const attendanceRate =
+      todayTotal > 0 ? (todayPresent / todayTotal) * 100 : 0;
 
     // Calculate financial metrics
     const totalRevenue = paymentStats._sum.amount || 0;
@@ -846,10 +849,7 @@ export const getSchoolDashboard = async (
       },
     };
 
-    logger.info(
-      { schoolId },
-      "School dashboard data retrieved successfully."
-    );
+    logger.info({ schoolId }, "School dashboard data retrieved successfully.");
 
     res.status(200).json({
       success: true,
