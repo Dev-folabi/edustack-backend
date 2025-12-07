@@ -1217,7 +1217,7 @@ export const validatePromoteStudent = [
   body("sectionId")
     .if(body("isGraduate").equals("false"))
     .notEmpty()
-    .withMessage("Target Section ID is required") 
+    .withMessage("Target Section ID is required")
     .isString()
     .withMessage("Section ID must be a string")
     .isLength({ max: 50 })

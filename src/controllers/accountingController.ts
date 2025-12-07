@@ -272,10 +272,11 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
         break;
 
       case "CLASS":
-        if (!classId) {
+        { if (!classId) {
           handleError(res, "Class ID is required for class assignment", 400);
           return;
         }
+
         const classStudents = await prisma.studentEnrollment.findMany({
           where: {
             classId,
@@ -284,10 +285,10 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           select: { studentId: true },
         });
         targetStudentIds = classStudents.map((s) => s.studentId);
-        break;
+        break; }
 
       case "SECTION":
-        if (!sectionId) {
+        { if (!sectionId) {
           handleError(
             res,
             "Section ID is required for section assignment",
@@ -295,6 +296,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           );
           return;
         }
+
         const sectionStudents = await prisma.studentEnrollment.findMany({
           where: {
             sectionId,
@@ -303,7 +305,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           select: { studentId: true },
         });
         targetStudentIds = sectionStudents.map((s) => s.studentId);
-        break;
+        break; }
     }
 
     if (targetStudentIds.length === 0) {

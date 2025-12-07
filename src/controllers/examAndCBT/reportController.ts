@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../../prisma";
 import { handleError } from "../../error/errorHandler";
 import logger from "../../utils/logger";
-import { Prisma } from "@prisma/client";
 
 /**
  * Generate a detailed report card for a single student for a specific term.

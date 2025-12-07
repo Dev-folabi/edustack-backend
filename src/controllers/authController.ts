@@ -111,9 +111,9 @@ const getParent = async (
         throw new Error("User exists but is not registered as a parent.");
       }
       return existingUser.parent.id;
-    } else {
-      throw new Error("Invalid parent credentials provided.");
     }
+      throw new Error("Invalid parent credentials provided.");
+
   } else {
     throw new Error("Parent not found with the provided email or username.");
   }

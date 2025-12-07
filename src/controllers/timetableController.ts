@@ -91,7 +91,7 @@ export const createTimetable = async (
           },
           include: { entries: true },
         });
-      } else {
+      }
         return tx.timetable.create({
           data: {
             schoolId,
@@ -114,7 +114,7 @@ export const createTimetable = async (
           },
           include: { entries: true },
         });
-      }
+
     });
 
     logger.info(
@@ -628,7 +628,7 @@ export const updateTimetable = async (
           },
           include: { entries: true },
         });
-      } else {
+      }
         return tx.timetable.create({
           data: {
             schoolId,
@@ -641,7 +641,7 @@ export const updateTimetable = async (
           },
           include: { entries: true },
         });
-      }
+
     });
 
     logger.info(
