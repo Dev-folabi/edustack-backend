@@ -91,7 +91,7 @@ export const createTimetable = async (
           },
           include: { entries: true },
         });
-      } else {
+      }
         return tx.timetable.create({
           data: {
             schoolId,
@@ -114,7 +114,7 @@ export const createTimetable = async (
           },
           include: { entries: true },
         });
-      }
+
     });
 
     logger.info(
@@ -191,8 +191,13 @@ export const getClassTimetable = async (
 ) => {
   try {
     const { sectionId } = req.params;
+    const { status } = req.query;
+    const whereClause = { sectionId };
+    if (status) {
+      whereClause["status"] = status;
+    }
     const timetable = await prisma.timetable.findFirst({
-      where: { sectionId },
+      where: whereClause,
       include: {
         entries: {
           select: {
@@ -558,7 +563,7 @@ export const updateTimetable = async (
 ) => {
   try {
     const { timetableId } = req.params;
-    const { schoolId, classId, sectionId, sessionId, termId, status,  } =
+    const { schoolId, classId, sectionId, sessionId, termId, status } =
       req.body;
 
     // Check if timetable exists
@@ -623,7 +628,7 @@ export const updateTimetable = async (
           },
           include: { entries: true },
         });
-      } else {
+      }
         return tx.timetable.create({
           data: {
             schoolId,
@@ -636,7 +641,7 @@ export const updateTimetable = async (
           },
           include: { entries: true },
         });
-      }
+
     });
 
     logger.info(

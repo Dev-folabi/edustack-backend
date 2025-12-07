@@ -13,7 +13,6 @@ import {
   updateExpenseValidator,
   createPaymentGatewayValidator,
   updatePaymentGatewayValidator,
-  idValidator,
   financialReportValidator,
 } from "../../middlewares/Validators";
 import {
@@ -41,10 +40,16 @@ import {
   updatePaymentGateway,
   getFinancialOverview,
   getStudentFinancialReport,
+  getStudentInvoicesByStudentId,
   getPaymentReport,
   handlePaymentWebhook,
+  cancelStudentInvoice,
 } from "../../controllers/accountingController";
-import { FINANCE_ROLES, ADMIN_ROLES } from "../../config/constants";
+import {
+  FINANCE_ROLES,
+  ADMIN_ROLES,
+  STUDENT_ROLES,
+} from "../../config/constants";
 
 const router = Router();
 
@@ -68,7 +73,7 @@ router.get(
   "/fee-categories/:schoolId/:id",
   verifyToken,
   roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+
   getFeeCategoryById
 );
 
@@ -84,7 +89,7 @@ router.delete(
   "/fee-categories/:id",
   verifyToken,
   roleAuthorization([...ADMIN_ROLES]),
-  idValidator,
+
   deleteFeeCategory
 );
 
@@ -108,7 +113,7 @@ router.get(
   "/invoices/:id",
   verifyToken,
   roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+
   getInvoiceById
 );
 
@@ -124,8 +129,16 @@ router.delete(
   "/invoices/:id",
   verifyToken,
   roleAuthorization([...ADMIN_ROLES]),
-  idValidator,
+
   deleteInvoice
+);
+
+router.patch(
+  "/student-invoices/:id/cancel",
+  verifyToken,
+  roleAuthorization([...FINANCE_ROLES]),
+
+  cancelStudentInvoice
 );
 
 // Payment Routes
@@ -138,25 +151,24 @@ router.post(
 );
 
 router.get(
-  "/payments",
+  "/payments/school/:schoolId",
   verifyToken,
-  roleAuthorization([...FINANCE_ROLES]),
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
   getPayments
 );
 
 router.get(
   "/payments/:id",
   verifyToken,
-  roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
   getPaymentById
 );
 
-router.patch(
+router.put(
   "/payments/:id/status",
   verifyToken,
   roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+
   updatePaymentStatus
 );
 
@@ -180,7 +192,7 @@ router.get(
   "/expenses/:id",
   verifyToken,
   roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+
   getExpenseById
 );
 
@@ -196,7 +208,7 @@ router.delete(
   "/expenses/:id",
   verifyToken,
   roleAuthorization([...ADMIN_ROLES]),
-  idValidator,
+
   deleteExpense
 );
 
@@ -241,8 +253,16 @@ router.get(
 
   verifyToken,
   roleAuthorization([...FINANCE_ROLES]),
-  idValidator,
+
   getStudentFinancialReport
+);
+
+router.get(
+  "/student-invoices/student/:studentId/:schoolId",
+  verifyToken,
+  roleAuthorization([...FINANCE_ROLES, ...STUDENT_ROLES]),
+
+  getStudentInvoicesByStudentId
 );
 
 router.get(

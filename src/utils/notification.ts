@@ -24,19 +24,19 @@ const sendMail = async (options: MailOptions, attempt = 1): Promise<void> => {
           pass: process.env.SMTP_PASSWORD as string,
         },
       });
-  
+
       const mailOptions: SendMailOptions = {
         from: process.env.SMTP_MAIL as string,
         to: options.email,
         subject: options.subject,
         text: options.message,
       };
-  
+
       await transporter.sendMail(mailOptions);
       console.log(` Email sent successfully to ${options.email}`);
     } catch (error: any) {
       console.error(` Error sending email to ${options.email}:`, error.message);
-  
+
       if (attempt < 3) {
         console.log(`Retrying email (${attempt + 1}/3)...`);
         await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 sec before retry
@@ -46,7 +46,7 @@ const sendMail = async (options: MailOptions, attempt = 1): Promise<void> => {
       }
     }
   };
-  
+
 
 export interface NotificationOptions {
   userId: string;
@@ -98,7 +98,7 @@ export const notifyUser = async ({
   category?: NotificationOptions["category"];
   channels: ("EMAIL" | "IN_APP" | "BOTH")[];
 }) => {
-  console.log(email)
+  console.log(email);
   if (channels.includes("IN_APP") || channels.includes("BOTH")) {
     await createNotification({ userId, title, message, category });
   }

@@ -30,7 +30,7 @@ export const getStaffsBySchool = async (
     const whereFilter: any = {
       schoolId,
       user: {
-        staff: isActive === 'true' 
+        staff: isActive === 'true'
           ? { isActive: true }
           : { isNot: null }
       }

@@ -55,7 +55,7 @@ export const createFeeCategory = async (
       data: feeCategory,
     });
   } catch (error) {
-    logger.error("Error creating fee category:", error);
+    logger.error({ err: error }, "Error creating fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -89,7 +89,7 @@ export const getFeeCategories = async (req: Request, res: Response) => {
       data: paginateResults(feeCategories, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching fee categories:", error);
+    logger.error({ err: error }, "Error fetching fee categories:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -117,7 +117,7 @@ export const getFeeCategoryById = async (req: Request, res: Response) => {
       data: feeCategory,
     });
   } catch (error) {
-    logger.error("Error fetching fee category:", error);
+    logger.error({ err: error }, "Error fetching fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -170,7 +170,7 @@ export const updateFeeCategory = async (req: Request, res: Response) => {
       data: updatedCategory,
     });
   } catch (error) {
-    logger.error("Error updating fee category:", error);
+    logger.error({ err: error }, "Error updating fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -220,7 +220,7 @@ export const deleteFeeCategory = async (req: Request, res: Response) => {
       message: "Fee category deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting fee category:", error);
+    logger.error({ err: error }, "Error deleting fee category:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -246,7 +246,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       allowPartialPayment = false,
     }: CreateAndAssignInvoiceRequest = req.body;
 
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Validate fee categories exist
     const feeCategoryIds = items.map((item) => item.feeCategoryId);
@@ -272,10 +272,11 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
         break;
 
       case "CLASS":
-        if (!classId) {
+        { if (!classId) {
           handleError(res, "Class ID is required for class assignment", 400);
           return;
         }
+
         const classStudents = await prisma.studentEnrollment.findMany({
           where: {
             classId,
@@ -284,10 +285,10 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           select: { studentId: true },
         });
         targetStudentIds = classStudents.map((s) => s.studentId);
-        break;
+        break; }
 
       case "SECTION":
-        if (!sectionId) {
+        { if (!sectionId) {
           handleError(
             res,
             "Section ID is required for section assignment",
@@ -295,6 +296,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           );
           return;
         }
+
         const sectionStudents = await prisma.studentEnrollment.findMany({
           where: {
             sectionId,
@@ -303,7 +305,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           select: { studentId: true },
         });
         targetStudentIds = sectionStudents.map((s) => s.studentId);
-        break;
+        break; }
     }
 
     if (targetStudentIds.length === 0) {
@@ -343,7 +345,9 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
 
     // Generate invoice number
     const invoiceCount = await prisma.invoice.count({ where: { schoolId } });
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(4, "0")}`;
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(
+      invoiceCount + 1
+    ).padStart(4, "0")}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create invoice
@@ -352,8 +356,6 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           invoiceNumber,
           title,
           description,
-          totalAmount,
-          amountDue: totalAmount,
           allowPartialPayment,
           dueDate: dueDate ? new Date(dueDate) : null,
           schoolId,
@@ -364,7 +366,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       });
 
       // Create invoice items
-      const invoiceItems = await Promise.all(
+      await Promise.all(
         items.map((item) =>
           tx.invoiceItem.create({
             data: {
@@ -383,10 +385,12 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
           invoiceId: invoice.id,
           studentId,
           assignedBy: userId,
+          totalAmount,
+          amountDue: totalAmount,
         })),
       });
 
-      return { invoice, invoiceItems, assignments };
+      return { invoice, assignments };
     });
 
     logger.info(
@@ -402,7 +406,7 @@ export const createAndAssignInvoice = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error creating and assigning invoice:", error);
+    logger.error({ err: error }, "Error creating and assigning invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -418,7 +422,6 @@ export const getInvoices = async (req: Request, res: Response) => {
     const take = Number(limit);
 
     const where: any = { schoolId };
-    if (status) where.status = status;
     if (termId) where.termId = termId;
     if (sessionId) where.sessionId = sessionId;
 
@@ -433,12 +436,7 @@ export const getInvoices = async (req: Request, res: Response) => {
           },
           term: true,
           session: true,
-          _count: {
-            select: {
-              studentInvoices: true,
-              payments: true,
-            },
-          },
+          studentInvoices: true,
         },
         skip,
         take,
@@ -447,13 +445,40 @@ export const getInvoices = async (req: Request, res: Response) => {
       prisma.invoice.count({ where }),
     ]);
 
+    const processedInvoices = invoices.map((invoice) => {
+      const totalAmount = invoice.studentInvoices.reduce(
+        (sum, si) => sum + si.totalAmount,
+        0
+      );
+      const amountPaid = invoice.studentInvoices.reduce(
+        (sum, si) => sum + si.amountPaid,
+        0
+      );
+      const amountDue = totalAmount - amountPaid;
+
+      const { studentInvoices, ...rest } = invoice;
+
+      return {
+        ...rest,
+        totalAmount,
+        amountPaid,
+        amountDue,
+        studentInvoicesCount: studentInvoices.length,
+      };
+    });
+
     res.json({
       success: true,
       message: "Invoices retrieved successfully",
-      data: paginateResults(invoices, Number(page), Number(limit), total),
+      data: paginateResults(
+        processedInvoices,
+        Number(page),
+        Number(limit),
+        total
+      ),
     });
   } catch (error) {
-    logger.error("Error fetching invoices:", error);
+    logger.error({ err: error }, "Error fetching invoices:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -486,17 +511,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
                 admission_number: true,
               },
             },
-          },
-        },
-        payments: {
-          include: {
-            student: {
-              select: {
-                id: true,
-                name: true,
-                admission_number: true,
-              },
-            },
+            payments: true,
           },
         },
       },
@@ -507,13 +522,31 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       return;
     }
 
+    const totalAmount = invoice.studentInvoices.reduce(
+      (sum, si) => sum + si.totalAmount,
+      0
+    );
+    const amountPaid = invoice.studentInvoices.reduce(
+      (sum, si) => sum + si.amountPaid,
+      0
+    );
+    const amountDue = totalAmount - amountPaid;
+
+    const { studentInvoices, ...rest } = invoice;
+
     res.json({
       success: true,
       message: "Invoice retrieved successfully",
-      data: invoice,
+      data: {
+        ...rest,
+        totalAmount,
+        amountPaid,
+        amountDue,
+        studentInvoices,
+      },
     });
   } catch (error) {
-    logger.error("Error fetching invoice:", error);
+    logger.error({ err: error }, "Error fetching invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -524,7 +557,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
 export const updateInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdateInvoiceRequest = req.body;
 
     // Check if invoice exists
@@ -539,16 +572,11 @@ export const updateInvoice = async (req: Request, res: Response) => {
       return;
     }
 
-    // Prevent updating paid invoices
-    if (existingInvoice.status === "PAID" && updateData.status !== "PAID") {
-      handleError(res, "Cannot modify paid invoice status", 400);
-      return;
-    }
-
     const processedData: any = { ...updateData };
     if (updateData.dueDate) {
       processedData.dueDate = new Date(updateData.dueDate);
     }
+    delete processedData.status;
 
     const updatedInvoice = await prisma.invoice.update({
       where: { id },
@@ -570,7 +598,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
       data: updatedInvoice,
     });
   } catch (error) {
-    logger.error("Error updating invoice:", error);
+    logger.error({ err: error }, "Error updating invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -581,7 +609,7 @@ export const updateInvoice = async (req: Request, res: Response) => {
 export const deleteInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     // Check if invoice exists
     const invoice = await prisma.invoice.findFirst({
@@ -596,25 +624,41 @@ export const deleteInvoice = async (req: Request, res: Response) => {
     }
 
     // Prevent deleting invoices with payments
-    const paymentCount = await prisma.payment.count({
+    const studentInvoices = await prisma.studentInvoice.findMany({
       where: { invoiceId: id },
+      include: {
+        payments: true,
+      },
     });
 
-    if (paymentCount > 0) {
-      handleError(res, "Cannot delete invoice with existing payments", 400);
-      return;
+    for (const si of studentInvoices) {
+      if (si.payments.length > 0) {
+        handleError(
+          res,
+          `Cannot delete invoice because student ${si.studentId} has payments associated with it.`,
+          400
+        );
+        return;
+      }
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.invoiceItem.deleteMany({
-        where: { invoiceId: id },
+      // Delete payments (although there should be none)
+      await tx.payment.deleteMany({
+        where: {
+          studentInvoice: {
+            invoiceId: id,
+          },
+        },
       });
-
       // Delete student assignments
       await tx.studentInvoice.deleteMany({
         where: { invoiceId: id },
       });
 
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: id },
+      });
       // Delete invoice
       await tx.invoice.delete({
         where: { id },
@@ -628,7 +672,7 @@ export const deleteInvoice = async (req: Request, res: Response) => {
       message: "Invoice deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting invoice:", error);
+    logger.error({ err: error }, "Error deleting invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -640,96 +684,66 @@ export const deleteInvoice = async (req: Request, res: Response) => {
 export const createPayment = async (req: Request, res: Response) => {
   try {
     const {
-      invoiceId,
-      studentId,
+      studentInvoiceId,
       amount,
       paymentMethod,
-      transactionRef,
       schoolId,
     }: CreatePaymentRequest = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
-    // Verify invoice exists and belongs to school
-    const invoice = await prisma.invoice.findFirst({
-      where: {
-        id: invoiceId,
-        schoolId,
-      },
-      select: {
-        id: true,
-        totalAmount: true,
-        amountPaid: true,
-        amountDue: true,
-        status: true,
-        allowPartialPayment: true,
-      },
-    });
-
-    if (!invoice) {
-      handleError(res, "Invoice not found", 404);
-      return;
-    }
-
-    // Verify student is assigned to this invoice
+    // Verify student invoice exists and belongs to school
     const studentInvoice = await prisma.studentInvoice.findFirst({
       where: {
-        invoiceId,
-        studentId,
+        id: studentInvoiceId,
+        invoice: {
+          schoolId,
+        },
+      },
+      include: {
+        invoice: true,
       },
     });
 
     if (!studentInvoice) {
-      handleError(res, "Student is not assigned to this invoice", 400);
+      handleError(res, "Student invoice not found", 404);
       return;
     }
 
     // Check if payment amount doesn't exceed remaining balance
-    const existingPayments = await prisma.payment.aggregate({
-      where: {
-        invoiceId,
-        studentId,
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-    });
-
-    const totalPaid = existingPayments._sum.amount || 0;
-    const remainingBalance = invoice.totalAmount - totalPaid;
-
-    if (amount > remainingBalance) {
+    if (amount > studentInvoice.amountDue) {
       handleError(
         res,
-        `Payment amount exceeds remaining balance of ${remainingBalance}`,
+        `Payment amount exceeds remaining balance of ${studentInvoice.amountDue}`,
         400
       );
+      return;
     }
 
     // Validate partial payment is allowed
-    const wouldBePartialPayment = amount < remainingBalance;
-    if (wouldBePartialPayment && !invoice.allowPartialPayment) {
+    const wouldBePartialPayment = amount < studentInvoice.amountDue;
+    if (wouldBePartialPayment && !studentInvoice.invoice.allowPartialPayment) {
       handleError(
         res,
         "Partial payments are not allowed for this invoice. Please pay the full remaining balance.",
         400
       );
+      return;
     }
 
-    // Generate payment number
+    // Generate payment reference
     const paymentCount = await prisma.payment.count({ where: { schoolId } });
     const paymentNumber = `PAY-${new Date().getFullYear()}-${String(paymentCount + 1).padStart(6, "0")}`;
+    const reference = `${paymentNumber}-${Date.now()}`;
 
     const result = await prisma.$transaction(async (tx) => {
       // Create payment
       const payment = await tx.payment.create({
         data: {
           paymentNumber,
-          invoiceId,
-          studentId,
+          studentInvoiceId,
           amount,
           paymentMethod,
-          transactionRef,
+          transactionRef: reference,
           status: paymentMethod === "CASH" ? "COMPLETED" : "PENDING",
           paidAt: paymentMethod === "CASH" ? new Date() : null,
           schoolId,
@@ -737,26 +751,20 @@ export const createPayment = async (req: Request, res: Response) => {
         },
       });
 
-      // Update invoice amounts if payment is completed
-      if (paymentMethod === "CASH") {
-        const newAmountPaid = invoice.amountPaid + amount;
-        const newAmountDue = invoice.totalAmount - newAmountPaid;
+      // Update student invoice amounts if payment is completed
+      if (payment.status === "COMPLETED") {
+        const newAmountPaid = studentInvoice.amountPaid + amount;
+        const newAmountDue = studentInvoice.totalAmount - newAmountPaid;
 
         let newStatus;
         if (newAmountDue <= 0) {
           newStatus = "PAID";
-        } else if (
-          newAmountPaid > 0 &&
-          newAmountDue > 0 &&
-          invoice.allowPartialPayment
-        ) {
-          newStatus = "PARTIALLY_PAID";
         } else {
-          newStatus = invoice.status;
+          newStatus = "PARTIALLY_PAID";
         }
 
-        await tx.invoice.update({
-          where: { id: invoiceId },
+        await tx.studentInvoice.update({
+          where: { id: studentInvoiceId },
           data: {
             amountPaid: newAmountPaid,
             amountDue: newAmountDue,
@@ -769,7 +777,7 @@ export const createPayment = async (req: Request, res: Response) => {
     });
 
     logger.info(
-      `Payment created: ${result.id} for invoice: ${invoiceId} by user: ${userId}`
+      `Payment created: ${result.id} for student invoice: ${studentInvoiceId} by user: ${userId}`
     );
 
     res.status(201).json({
@@ -778,7 +786,7 @@ export const createPayment = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
-    logger.error("Error creating payment:", error);
+    logger.error({ err: error }, "Error creating payment:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -788,13 +796,13 @@ export const createPayment = async (req: Request, res: Response) => {
 
 export const getPayments = async (req: Request, res: Response) => {
   try {
+    const { schoolId } = req.params;
     const {
       page = 1,
       limit = 10,
-      schoolId,
       status,
-      invoiceId,
       studentId,
+      studentInvoiceId,
       paymentMethod,
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
@@ -802,27 +810,30 @@ export const getPayments = async (req: Request, res: Response) => {
 
     const where: any = { schoolId };
     if (status) where.status = status;
-    if (invoiceId) where.invoiceId = invoiceId;
-    if (studentId) where.studentId = studentId;
+    if (studentId) where.studentInvoice = { studentId: String(studentId) };
+    if (studentInvoiceId) where.studentInvoiceId = studentInvoiceId;
     if (paymentMethod) where.paymentMethod = paymentMethod;
 
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
         where,
         include: {
-          invoice: {
-            select: {
-              id: true,
-              invoiceNumber: true,
-              title: true,
-              totalAmount: true,
-            },
-          },
-          student: {
-            select: {
-              id: true,
-              name: true,
-              admission_number: true,
+          studentInvoice: {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  name: true,
+                  admission_number: true,
+                },
+              },
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  title: true,
+                },
+              },
             },
           },
         },
@@ -839,7 +850,7 @@ export const getPayments = async (req: Request, res: Response) => {
       data: paginateResults(payments, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching payments:", error);
+    logger.error({ err: error }, "Error fetching payments:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -856,22 +867,26 @@ export const getPaymentById = async (req: Request, res: Response) => {
         id,
       },
       include: {
-        invoice: {
+        studentInvoice: {
           include: {
-            invoiceItems: {
-              include: {
-                feeCategory: true,
+            student: {
+              select: {
+                id: true,
+                name: true,
+                admission_number: true,
+                email: true,
+                phone: true,
               },
             },
-          },
-        },
-        student: {
-          select: {
-            id: true,
-            name: true,
-            admission_number: true,
-            email: true,
-            phone: true,
+            invoice: {
+              include: {
+                invoiceItems: {
+                  include: {
+                    feeCategory: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -888,7 +903,7 @@ export const getPaymentById = async (req: Request, res: Response) => {
       data: payment,
     });
   } catch (error) {
-    logger.error("Error fetching payment:", error);
+    logger.error({ err: error }, "Error fetching payment:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -900,7 +915,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { schoolId, status } = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     if (!["PENDING", "COMPLETED", "FAILED", "REFUNDED"].includes(status)) {
       handleError(res, "Invalid payment status", 400);
@@ -913,15 +928,7 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         schoolId,
       },
       include: {
-        invoice: {
-          select: {
-            id: true,
-            totalAmount: true,
-            amountPaid: true,
-            status: true,
-            allowPartialPayment: true,
-          },
-        },
+        studentInvoice: true,
       },
     });
 
@@ -937,10 +944,11 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         data: {
           status,
           paidAt: status === "COMPLETED" ? new Date() : payment.paidAt,
+          updatedBy: userId,
         },
       });
 
-      // Update invoice amounts based on payment status change
+      // Update student invoice amounts based on payment status change
       if (payment.status !== status) {
         let amountChange = 0;
 
@@ -951,26 +959,22 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
         }
 
         if (amountChange !== 0) {
-          const newAmountPaid = payment.invoice.amountPaid + amountChange;
-          const newAmountDue = payment.invoice.totalAmount - newAmountPaid;
+          const newAmountPaid =
+            payment.studentInvoice.amountPaid + amountChange;
+          const newAmountDue =
+            payment.studentInvoice.totalAmount - newAmountPaid;
 
           let newStatus;
           if (newAmountDue <= 0) {
             newStatus = "PAID";
-          } else if (
-            newAmountPaid > 0 &&
-            newAmountDue > 0 &&
-            payment.invoice.allowPartialPayment
-          ) {
+          } else if (newAmountPaid > 0) {
             newStatus = "PARTIALLY_PAID";
-          } else if (newAmountDue === payment.invoice.totalAmount) {
-            newStatus = "SENT";
           } else {
-            newStatus = payment.invoice.status;
+            newStatus = "UNPAID";
           }
 
-          await tx.invoice.update({
-            where: { id: payment.invoiceId },
+          await tx.studentInvoice.update({
+            where: { id: payment.studentInvoiceId },
             data: {
               amountPaid: newAmountPaid,
               amountDue: newAmountDue,
@@ -993,7 +997,62 @@ export const updatePaymentStatus = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
-    logger.error("Error updating payment status:", error);
+    logger.error({ err: error }, "Error updating payment status:");
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelStudentInvoice = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { userId } = (req as any).user;
+
+    const studentInvoice = await prisma.studentInvoice.findFirst({
+      where: {
+        id,
+      },
+      include: {
+        payments: {
+          where: {
+            status: "COMPLETED",
+          },
+        },
+      },
+    });
+
+    if (!studentInvoice) {
+      handleError(res, "Student invoice not found", 404);
+      return;
+    }
+
+    if (studentInvoice.payments.length > 0) {
+      handleError(
+        res,
+        "Cannot cancel an invoice that has completed payments.",
+        400
+      );
+      return;
+    }
+
+    const updatedStudentInvoice = await prisma.studentInvoice.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+      },
+    });
+
+    logger.info(`Student invoice cancelled: ${id} by user: ${userId}`);
+
+    res.json({
+      success: true,
+      message: "Student invoice cancelled successfully",
+      data: updatedStudentInvoice,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Error cancelling student invoice:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1013,7 +1072,7 @@ export const createExpense = async (req: Request, res: Response) => {
       expenseDate,
       schoolId,
     }: CreateExpenseRequest = req.body;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     const expense = await prisma.expense.create({
       data: {
@@ -1036,7 +1095,7 @@ export const createExpense = async (req: Request, res: Response) => {
       data: expense,
     });
   } catch (error) {
-    logger.error("Error creating expense:", error);
+    logger.error({ err: error }, "Error creating expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1075,7 +1134,7 @@ export const getExpenses = async (req: Request, res: Response) => {
       data: paginateResults(expenses, Number(page), Number(limit), total),
     });
   } catch (error) {
-    logger.error("Error fetching expenses:", error);
+    logger.error({ err: error }, "Error fetching expenses:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1104,7 +1163,7 @@ export const getExpenseById = async (req: Request, res: Response) => {
       data: expense,
     });
   } catch (error) {
-    logger.error("Error fetching expense:", error);
+    logger.error({ err: error }, "Error fetching expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1115,7 +1174,7 @@ export const getExpenseById = async (req: Request, res: Response) => {
 export const updateExpense = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdateExpenseRequest = req.body;
 
     const expense = await prisma.expense.findFirst({
@@ -1147,7 +1206,7 @@ export const updateExpense = async (req: Request, res: Response) => {
       data: updatedExpense,
     });
   } catch (error) {
-    logger.error("Error updating expense:", error);
+    logger.error({ err: error }, "Error updating expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1158,7 +1217,7 @@ export const updateExpense = async (req: Request, res: Response) => {
 export const deleteExpense = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
 
     const expense = await prisma.expense.findFirst({
       where: {
@@ -1182,7 +1241,7 @@ export const deleteExpense = async (req: Request, res: Response) => {
       message: "Expense deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting expense:", error);
+    logger.error({ err: error }, "Error deleting expense:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1193,12 +1252,17 @@ export const deleteExpense = async (req: Request, res: Response) => {
 // Payment Gateways
 export const createPaymentGateway = async (req: Request, res: Response) => {
   try {
-    const { schoolId,  provider, publicKey,
-        secretKey,
-        webhookUrl,
-        callbackUrl, merchantId, isActive }: CreatePaymentGatewayRequest =
-      req.body;
-    const { userId } = (req as any).user;
+    const {
+      schoolId,
+      provider,
+      publicKey,
+      secretKey,
+      webhookUrl,
+      callbackUrl,
+      merchantId,
+      isActive,
+    }: CreatePaymentGatewayRequest = req.body;
+    const userId = (req as any).user;
 
     // Check if gateway with same provider already exists
     const existingGateway = await prisma.paymentGateway.findFirst({
@@ -1238,7 +1302,7 @@ export const createPaymentGateway = async (req: Request, res: Response) => {
       data: gateway,
     });
   } catch (error) {
-    logger.error("Error creating payment gateway:", error);
+    logger.error({ err: error }, "Error creating payment gateway:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1273,7 +1337,7 @@ export const getPaymentGateways = async (req: Request, res: Response) => {
       data: gateways,
     });
   } catch (error) {
-    logger.error("Error fetching payment gateways:", error);
+    logger.error({ err: error }, "Error fetching payment gateways:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1284,7 +1348,7 @@ export const getPaymentGateways = async (req: Request, res: Response) => {
 export const updatePaymentGateway = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = (req as any).user;
+    const userId = (req as any).user;
     const updateData: UpdatePaymentGatewayRequest = req.body;
 
     const gateway = await prisma.paymentGateway.findFirst({
@@ -1304,7 +1368,7 @@ export const updatePaymentGateway = async (req: Request, res: Response) => {
       select: {
         id: true,
         provider: true,
-         merchantId: true,
+        merchantId: true,
         webhookUrl: true,
         callbackUrl: true,
         publicKey: true,
@@ -1323,7 +1387,7 @@ export const updatePaymentGateway = async (req: Request, res: Response) => {
       data: updatedGateway,
     });
   } catch (error) {
-    logger.error("Error updating payment gateway:", error);
+    logger.error({ err: error }, "Error updating payment gateway:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1354,75 +1418,81 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       expenseWhere.expenseDate = dateFilter;
     }
 
-    const [invoiceStats, paymentStats, expenseStats, recentTransactions] =
-      await Promise.all([
-        // Invoice statistics
-        prisma.invoice.aggregate({
-          where: invoiceWhere,
-          _sum: {
-            totalAmount: true,
-            amountPaid: true,
-            amountDue: true,
-          },
-          _count: true,
-        }),
+    const [
+      invoiceCount,
+      studentInvoiceStats,
+      paymentStats,
+      expenseStats,
+      recentTransactions,
+    ] = await Promise.all([
+      // Invoice count
+      prisma.invoice.count({ where: invoiceWhere }),
 
-        // Payment statistics
-        prisma.payment.aggregate({
-          where: {
-            schoolId,
-            status: "COMPLETED",
-            ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
-          },
-          _sum: {
-            amount: true,
-          },
-          _count: true,
-        }),
+      // StudentInvoice statistics (holds totals)
+      prisma.studentInvoice.aggregate({
+        where: { invoice: invoiceWhere },
+        _sum: {
+          totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
+        },
+        _count: true,
+      }),
 
-        // Expense statistics
-        prisma.expense.aggregate({
-          where: expenseWhere,
-          _sum: {
-            amount: true,
-          },
-          _count: true,
-        }),
+      // Payment statistics
+      prisma.payment.aggregate({
+        where: {
+          schoolId,
+          status: "COMPLETED",
+          ...(Object.keys(dateFilter).length > 0 && { paidAt: dateFilter }),
+        },
+        _sum: {
+          amount: true,
+        },
+        _count: true,
+      }),
 
-        // Recent transactions (payments)
-        prisma.payment.findMany({
-          where: {
-            schoolId,
-            status: "COMPLETED",
-          },
-          include: {
-            student: {
-              select: {
-                name: true,
-                admission_number: true,
+      // Expense statistics
+      prisma.expense.aggregate({
+        where: expenseWhere,
+        _sum: {
+          amount: true,
+        },
+        _count: true,
+      }),
+
+      // Recent transactions (payments)
+      prisma.payment.findMany({
+        where: {
+          schoolId,
+          status: "COMPLETED",
+        },
+        include: {
+          studentInvoice: {
+            include: {
+              student: {
+                select: { name: true, admission_number: true },
+              },
+              invoice: {
+                select: { invoiceNumber: true, title: true },
               },
             },
-            invoice: {
-              select: {
-                invoiceNumber: true,
-                title: true,
-              },
-            },
           },
-          orderBy: { paidAt: "desc" },
-          take: 10,
-        }),
-      ]);
+        },
+        orderBy: { paidAt: "desc" },
+        take: 10,
+      }),
+    ]);
 
     // Calculate net income
     const totalRevenue = paymentStats._sum.amount || 0;
     const totalExpenses = expenseStats._sum.amount || 0;
     const netIncome = totalRevenue - totalExpenses;
 
-    // Invoice status breakdown
-    const invoiceStatusBreakdown = await prisma.invoice.groupBy({
+    // Invoice status breakdown (by StudentInvoice status)
+    const invoiceStatusBreakdown = await prisma.studentInvoice.groupBy({
       by: ["status"],
-      where: invoiceWhere,
+      where: { invoice: invoiceWhere },
       _count: true,
       _sum: {
         totalAmount: true,
@@ -1444,10 +1514,10 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       message: "Financial overview retrieved successfully",
       data: {
         summary: {
-          totalInvoices: invoiceStats._count,
-          totalInvoiceAmount: invoiceStats._sum.totalAmount || 0,
-          totalAmountPaid: invoiceStats._sum.amountPaid || 0,
-          totalAmountDue: invoiceStats._sum.amountDue || 0,
+          totalInvoices: invoiceCount,
+          totalInvoiceAmount: studentInvoiceStats._sum.totalAmount || 0,
+          totalAmountPaid: studentInvoiceStats._sum.amountPaid || 0,
+          totalAmountDue: studentInvoiceStats._sum.amountDue || 0,
           totalPayments: paymentStats._count,
           totalRevenue,
           totalExpenses,
@@ -1460,7 +1530,7 @@ export const getFinancialOverview = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching financial overview:", error);
+    logger.error({ err: error }, "Error fetching financial overview:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1502,57 +1572,61 @@ export const getStudentFinancialReport = async (
       return;
     }
 
-    const invoiceWhere: any = {
-      schoolId,
-      studentInvoices: {
-        some: {
-          studentId,
-        },
+    const siWhere: any = {
+      studentId,
+      invoice: {
+        schoolId,
+        ...(termId ? { termId } : {}),
+        ...(sessionId ? { sessionId } : {}),
       },
     };
-    if (termId) invoiceWhere.termId = termId;
-    if (sessionId) invoiceWhere.sessionId = sessionId;
 
-    const [invoices, payments] = await Promise.all([
-      prisma.invoice.findMany({
-        where: invoiceWhere,
+    const [studentInvoices, payments] = await Promise.all([
+      prisma.studentInvoice.findMany({
+        where: siWhere,
         include: {
-          invoiceItems: {
+          invoice: {
             include: {
-              feeCategory: true,
+              invoiceItems: { include: { feeCategory: true } },
+              term: true,
+              session: true,
             },
           },
-          term: true,
-          session: true,
+          payments: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { assignedAt: "desc" },
       }),
 
       prisma.payment.findMany({
         where: {
-          studentId,
           schoolId,
+          studentInvoice: {
+            studentId,
+            invoice: { schoolId },
+          },
         },
         include: {
-          invoice: {
+          studentInvoice: {
             select: {
-              invoiceNumber: true,
-              title: true,
+              invoice: {
+                select: { invoiceNumber: true, title: true },
+              },
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { paidAt: "desc" },
       }),
     ]);
 
     // Calculate totals
-    const totalInvoiceAmount = invoices.reduce(
-      (sum, inv) => sum + inv.totalAmount,
+    const totalInvoiceAmount = studentInvoices.reduce(
+      (sum, si) => sum + si.totalAmount,
       0
     );
-    const totalPaidAmount = payments
-      .filter((p) => p.status === "COMPLETED")
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalPaidAmount = studentInvoices.reduce(
+      (sum, si) => sum + si.amountPaid,
+      0
+    );
     const totalOutstanding = totalInvoiceAmount - totalPaidAmount;
 
     res.json({
@@ -1564,19 +1638,130 @@ export const getStudentFinancialReport = async (
           totalInvoiceAmount,
           totalPaidAmount,
           totalOutstanding,
-          invoiceCount: invoices.length,
+          invoiceCount: studentInvoices.length,
           paymentCount: payments.filter((p) => p.status === "COMPLETED").length,
         },
-        invoices,
+        invoices: studentInvoices.map((si) => si.invoice),
         payments,
       },
     });
   } catch (error) {
-    logger.error("Error fetching student financial report:", error);
+    logger.error({ err: error }, "Error fetching student financial report:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
     });
+  }
+};
+
+// Get invoices assigned to a student
+export const getStudentInvoicesByStudentId = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { studentId, schoolId } = req.params;
+    const { page = 1, limit = 12, status } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+    const take = Number(limit);
+
+    // Ensure student exists and belongs to school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        student_enrolled: {
+          some: {
+            class: { schoolId },
+            status: "enrolled",
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!student) {
+      handleError(res, "Student not found or not enrolled in this school", 404);
+      return;
+    }
+
+    const where: any = {
+      studentId,
+      invoice: { schoolId },
+    };
+    if (status) where.status = status;
+
+    const [studentInvoices, total] = await Promise.all([
+      prisma.studentInvoice.findMany({
+        where,
+        include: {
+          invoice: {
+            include: {
+              invoiceItems: { include: { feeCategory: true } },
+              term: true,
+              session: true,
+            },
+          },
+        },
+        skip,
+        take,
+        orderBy: { assignedAt: "desc" },
+      }),
+      prisma.studentInvoice.count({ where }),
+    ]);
+
+    const studentInvoiceIds = studentInvoices.map((si) => si.id);
+
+    const payments =
+      studentInvoiceIds.length > 0
+        ? await prisma.payment.findMany({
+            where: { studentInvoiceId: { in: studentInvoiceIds } },
+            select: { studentInvoiceId: true, amount: true, status: true },
+          })
+        : [];
+
+    const paidMap: Record<string, number> = {};
+    payments.forEach((p: any) => {
+      if (p.status === "COMPLETED") {
+        paidMap[p.studentInvoiceId] =
+          (paidMap[p.studentInvoiceId] || 0) + (p.amount || 0);
+      }
+    });
+
+    const processed = studentInvoices.map((si: any) => {
+      const perStudentTotal = (si.invoice.invoiceItems || []).reduce(
+        (s: number, it: any) => s + (it.amount || 0),
+        0
+      );
+      const amountPaid = paidMap[si.id] || 0;
+      const amountDue = perStudentTotal - amountPaid;
+
+      let computedStatus = "UNPAID";
+      if (amountDue <= 0) computedStatus = "PAID";
+      else if (amountPaid > 0) computedStatus = "PARTIALLY_PAID";
+
+      return {
+        id: si.id,
+        assignedAt: si.assignedAt,
+        assignedBy: si.assignedBy,
+        invoice: si.invoice,
+        perStudentTotal,
+        amountPaid,
+        amountDue,
+        status: computedStatus,
+      };
+    });
+
+    res.json({
+      success: true,
+      message: "Student invoices retrieved successfully",
+      data: paginateResults(processed, Number(page), Number(limit), total),
+    });
+  } catch (error) {
+    logger.error(
+      { err: error },
+      "Error fetching student invoices by student id:"
+    );
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
@@ -1612,36 +1797,29 @@ export const getPaymentReport = async (req: Request, res: Response) => {
       where: {
         ...where,
         ...(Object.keys(studentFilter).length > 0 && {
-          student: studentFilter,
+          studentInvoice: {
+            student: studentFilter,
+          },
         }),
       },
       include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            admission_number: true,
-            student_enrolled: {
-              where: { status: "enrolled" },
-              include: {
-                class: {
-                  select: {
-                    name: true,
-                  },
-                },
-                section: {
-                  select: {
-                    name: true,
+        studentInvoice: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                admission_number: true,
+                student_enrolled: {
+                  where: { status: "enrolled" },
+                  include: {
+                    class: { select: { name: true } },
+                    section: { select: { name: true } },
                   },
                 },
               },
             },
-          },
-        },
-        invoice: {
-          select: {
-            invoiceNumber: true,
-            title: true,
+            invoice: { select: { invoiceNumber: true, title: true } },
           },
         },
       },
@@ -1671,7 +1849,7 @@ export const getPaymentReport = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching payment report:", error);
+    logger.error({ err: error }, "Error fetching payment report:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1706,7 +1884,7 @@ export const handlePaymentWebhook = async (req: Request, res: Response) => {
       message: "Webhook received successfully",
     });
   } catch (error) {
-    logger.error("Error handling payment webhook:", error);
+    logger.error({ err: error }, "Error handling payment webhook:");
     res.status(500).json({
       success: false,
       message: "Internal server error",

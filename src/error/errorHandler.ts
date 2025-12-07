@@ -54,12 +54,13 @@ export const errorHandler = (
         data = error.meta?.target ? { conflictingFields: error.meta.target } : undefined;
         break;
       case "P2003": // Foreign key constraint failed
-        const fieldName = (error.meta?.field_name as string) || metaTarget;
+
+        { const fieldName = (error.meta?.field_name as string) || metaTarget;
         logger.error(logContext, `Prisma Error ${error.code}: Foreign key constraint failed. Field: ${fieldName}.`);
         statusCode = 400; // Bad Request (or 409 Conflict)
         clientMessage = `An operation failed due to a data integrity issue with field: ${fieldName}. Ensure related records exist.`;
         data = fieldName ? { field: fieldName } : undefined;
-        break;
+        break; }
       case "P2004": // A constraint failed on the database (more generic)
         logger.error(logContext, `Prisma Error ${error.code}: A database constraint failed.`);
         statusCode = 400;

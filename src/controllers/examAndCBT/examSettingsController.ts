@@ -425,6 +425,7 @@ export const upsertGlobalExamSettings = async (
       showSchoolRemarks,
       showTeacherRemarks,
       passMark,
+      enablePosition,
     } = req.body;
 
     const dataToUpsert = {
@@ -432,6 +433,7 @@ export const upsertGlobalExamSettings = async (
       showSchoolRemarks,
       showTeacherRemarks,
       passMark,
+      enablePosition,
     };
 
     const settings = await prisma.globalExamSettings.upsert({

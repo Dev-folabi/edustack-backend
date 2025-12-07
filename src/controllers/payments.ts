@@ -3,70 +3,152 @@ import prisma from "../prisma";
 import logger from "../utils/logger";
 import { handleError } from "../error/errorHandler";
 import PaystackService from "../service/paystackService";
-import crypto from "crypto";
+
+// Helper function to handle successful payments
+const handleSuccessfulPayment = async (data: any) => {
+  const { reference, amount, metadata } = data;
+
+  try {
+    // Find the payment record
+    const payment = await prisma.payment.findFirst({
+      where: {
+        transactionRef: reference,
+        status: "PENDING",
+      },
+      include: {
+        studentInvoice: true,
+      },
+    });
+
+    if (!payment) {
+      logger.error(`Payment not found for reference: ${reference}`);
+      return;
+    }
+
+    // Verify amount matches
+    const expectedAmount = payment.amount * 100; // Convert to kobo
+    if (amount !== expectedAmount) {
+      logger.error(
+        `Amount mismatch for ${reference}: expected ${expectedAmount}, got ${amount}`
+      );
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Update payment status
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "COMPLETED",
+          paidAt: new Date(),
+          gatewayResponse: data,
+        },
+      });
+
+      // Update student invoice amounts
+      const si = payment.studentInvoice;
+      const newAmountPaid = si.amountPaid + payment.amount;
+      const newAmountDue = si.totalAmount - newAmountPaid;
+
+      let newStatus;
+      if (newAmountDue <= 0) {
+        newStatus = "PAID";
+      } else if (newAmountPaid > 0) {
+        newStatus = "PARTIALLY_PAID";
+      } else {
+        newStatus = si.status;
+      }
+
+      await tx.studentInvoice.update({
+        where: { id: si.id },
+        data: {
+          amountPaid: newAmountPaid,
+          amountDue: newAmountDue,
+          status: newStatus,
+        },
+      });
+    });
+
+    logger.info(`Payment completed successfully: ${payment.id}`);
+  } catch (error) {
+    logger.error(
+      { error },
+      `Error processing successful payment for ${reference}`
+    );
+  }
+};
+
+// Helper function to handle failed payments
+const handleFailedPayment = async (data: any) => {
+  const { reference } = data;
+
+  try {
+    const payment = await prisma.payment.findFirst({
+      where: {
+        transactionRef: reference,
+        status: "PENDING",
+      },
+    });
+
+    if (!payment) {
+      logger.error(`Payment not found for reference: ${reference}`);
+      return;
+    }
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "FAILED",
+        gatewayResponse: data,
+      },
+    });
+
+    logger.info(`Payment failed: ${payment.id}`);
+  } catch (error) {
+    logger.error({ error }, `Error processing failed payment for ${reference}`);
+  }
+};
 
 export const initializeOnlinePayment = async (req: Request, res: Response) => {
   try {
-    const { invoiceId, studentId, amount, schoolId, callbackUrl } = req.body;
-    const { userId } = (req as any).user;
+    const { studentInvoiceId, amount, schoolId, callbackUrl } = req.body;
+    const userId = (req as any).user;
 
-    const invoice = await prisma.invoice.findFirst({
+    // Fetch student invoice with related student and invoice
+    const studentInvoice = await prisma.studentInvoice.findFirst({
       where: {
-        id: invoiceId,
-        schoolId,
+        id: studentInvoiceId,
+        invoice: { schoolId },
       },
-      select: {
-        id: true,
-        totalAmount: true,
-        amountPaid: true,
-        amountDue: true,
-        status: true,
-        allowPartialPayment: true,
-      },
-    });
-
-    if (!invoice) {
-      return handleError(res, "Invoice not found", 404);
-    }
-
-    // Get student details
-    const student = await prisma.student.findFirst({
-      where: { id: studentId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        user: {
+      include: {
+        invoice: {
           select: {
-            email: true,
+            id: true,
+            allowPartialPayment: true,
           },
         },
-        parent: {
+        student: {
           select: {
+            id: true,
+            name: true,
             email: true,
+            parent: {
+              select: { email: true },
+            },
+            user: {
+              select: { email: true },
+            },
           },
         },
       },
     });
 
-    if (!student) {
-      return handleError(res, "Student not found", 404);
+    if (!studentInvoice) {
+      return handleError(res, "Student invoice not found", 404);
     }
 
     // Validate payment amount
-    const existingPayments = await prisma.payment.aggregate({
-      where: {
-        invoiceId,
-        studentId,
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-    });
-
-    const totalPaid = existingPayments._sum.amount || 0;
-    const remainingBalance = invoice.totalAmount - totalPaid;
+    const remainingBalance = studentInvoice.amountDue;
 
     if (amount > remainingBalance) {
       return handleError(
@@ -77,7 +159,9 @@ export const initializeOnlinePayment = async (req: Request, res: Response) => {
     }
 
     const wouldBePartialPayment = amount < remainingBalance;
-    if (wouldBePartialPayment && !invoice.allowPartialPayment) {
+    const allowPartial =
+      (studentInvoice as any).invoice?.allowPartialPayment === true;
+    if (wouldBePartialPayment && !allowPartial) {
       return handleError(
         res,
         "Partial payments are not allowed for this invoice. Please pay the full remaining balance.",
@@ -113,8 +197,7 @@ export const initializeOnlinePayment = async (req: Request, res: Response) => {
     const payment = await prisma.payment.create({
       data: {
         paymentNumber,
-        invoiceId,
-        studentId,
+        studentInvoiceId,
         amount,
         paymentMethod: "CARD",
         transactionRef: reference,
@@ -125,17 +208,21 @@ export const initializeOnlinePayment = async (req: Request, res: Response) => {
     });
 
     // Initialize payment with Paystack
+    const studentEmail =
+      (studentInvoice as any).student?.email ||
+      (studentInvoice as any).student?.parent?.email ||
+      (studentInvoice as any).student?.user?.email;
     const paystackResponse = await paystackService.initializePayment({
-      email: student.email || student.parent.email,
+      email: studentEmail,
       amount: amount * 100, // Convert to kobo
       reference,
       callback_url: callbackUrl || paymentGateway.callbackUrl,
       metadata: {
         paymentId: payment.id,
-        invoiceId,
-        studentId,
+        invoiceId: (studentInvoice as any).invoice?.id,
+        studentId: (studentInvoice as any).student?.id,
         schoolId,
-        studentName: student.name,
+        studentName: (studentInvoice as any).student?.name,
       },
     });
 
@@ -148,7 +235,7 @@ export const initializeOnlinePayment = async (req: Request, res: Response) => {
     });
 
     logger.info(
-      `Online payment initialized: ${payment.id} for invoice: ${invoiceId}`
+      `Online payment initialized: ${payment.id} for student invoice: ${studentInvoiceId}`
     );
 
     res.status(201).json({
@@ -161,7 +248,7 @@ export const initializeOnlinePayment = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error initializing online payment:", error);
+    logger.error({ error }, "Error initializing online payment:");
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -220,120 +307,11 @@ export const handlePaymentWebhook = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    logger.error("Webhook processing error:", error);
+    logger.error({ error }, "Webhook processing error:");
     res.status(500).json({
       success: false,
       message: "Webhook processing failed",
     });
-  }
-};
-
-// Helper function to handle successful payments
-const handleSuccessfulPayment = async (data: any) => {
-  const { reference, amount, metadata } = data;
-
-  try {
-    // Find the payment record
-    const payment = await prisma.payment.findFirst({
-      where: {
-        transactionRef: reference,
-        status: "PENDING",
-      },
-      include: {
-        invoice: true,
-      },
-    });
-
-    if (!payment) {
-      logger.error(`Payment not found for reference: ${reference}`);
-      return;
-    }
-
-    // Verify amount matches
-    const expectedAmount = payment.amount * 100; // Convert to kobo
-    if (amount !== expectedAmount) {
-      logger.error(
-        `Amount mismatch for ${reference}: expected ${expectedAmount}, got ${amount}`
-      );
-      return;
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // Update payment status
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: "COMPLETED",
-          paidAt: new Date(),
-          gatewayResponse: data,
-        },
-      });
-
-      // Update invoice amounts
-      const invoice = payment.invoice;
-      const newAmountPaid = invoice.amountPaid + payment.amount;
-      const newAmountDue = invoice.totalAmount - newAmountPaid;
-
-      let newStatus;
-      if (newAmountDue <= 0) {
-        newStatus = "PAID";
-      } else if (
-        newAmountPaid > 0 &&
-        newAmountDue > 0 &&
-        invoice.allowPartialPayment
-      ) {
-        newStatus = "PARTIALLY_PAID";
-      } else {
-        newStatus = invoice.status;
-      }
-
-      await tx.invoice.update({
-        where: { id: payment.invoiceId },
-        data: {
-          amountPaid: newAmountPaid,
-          amountDue: newAmountDue,
-          status: newStatus,
-        },
-      });
-    });
-
-    logger.info(`Payment completed successfully: ${payment.id}`);
-  } catch (error) {
-    logger.error(
-      `Error processing successful payment for ${reference}:`,
-      error
-    );
-  }
-};
-
-// Helper function to handle failed payments
-const handleFailedPayment = async (data: any) => {
-  const { reference } = data;
-
-  try {
-    const payment = await prisma.payment.findFirst({
-      where: {
-        transactionRef: reference,
-        status: "PENDING",
-      },
-    });
-
-    if (!payment) {
-      logger.error(`Payment not found for reference: ${reference}`);
-      return;
-    }
-
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "FAILED",
-        gatewayResponse: data,
-      },
-    });
-
-    logger.info(`Payment failed: ${payment.id}`);
-  } catch (error) {
-    logger.error(`Error processing failed payment for ${reference}:`, error);
   }
 };
 
@@ -350,11 +328,12 @@ export const verifyPayment = async (req: Request, res: Response) => {
         schoolId: schoolId as string,
       },
       include: {
-        invoice: true,
-        student: {
-          select: {
-            id: true,
-            name: true,
+        studentInvoice: {
+          include: {
+            invoice: true,
+            student: {
+              select: { id: true, name: true },
+            },
           },
         },
       },
@@ -402,7 +381,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Payment verification error:", error);
+    logger.error({ error }, "Payment verification error");
     res.status(500).json({
       success: false,
       message: "Payment verification failed",
