@@ -1,19 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import prisma from "../prisma";
-import {
-  NotificationCategory,
-  NotificationType,
-  Prisma,
-  PrismaClient,
-} from "@prisma/client"; // Import enums for clarity
-import { NotificationOptions, notifyUser } from "../utils/notification";
+import { NotificationCategory, NotificationType, Prisma } from "@prisma/client"; // Import enums for clarity
+import { notifyUser } from "../utils/notification";
 import logger from "../utils/logger";
-
-// Type for Prisma Transaction Client
-type PrismaTransactionClient = Omit<
-  PrismaClient,
-  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
->;
 
 /**
  * Represents a recipient for a notification or message.
@@ -150,7 +139,7 @@ const _getTargetRecipients = async (filter: {
   sectionId?: string;
   schoolId?: string;
 }): Promise<Recipient[]> => {
-  let recipients: Recipient[] = [];
+  const recipients: Recipient[] = [];
 
   if (filter.studentIds && filter.studentIds.length > 0) {
     recipients.push(...(await _getStudentsByIds(filter.studentIds)));
@@ -289,12 +278,10 @@ export const sendBulkMessages = async (
         { recipientsFilter: recipients },
         "No recipients found for bulk message criteria."
       );
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "No recipients found matching the criteria.",
-        });
+      res.status(400).json({
+        success: false,
+        message: "No recipients found matching the criteria.",
+      });
       return;
     }
 
