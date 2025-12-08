@@ -18,7 +18,7 @@ import {
   roleAuthorization,
   verifyToken,
 } from "../../middlewares/authorization";
-import { SUPER_ADMIN_ROLES } from "../../config/constants";
+import { SUPER_ADMIN_ROLES, ADMIN_ROLES } from "../../config/constants";
 
 const router = express.Router();
 
@@ -64,7 +64,7 @@ router.delete(
 router.get(
   "/dashboard/:schoolId",
   verifyToken,
-  roleAuthorization([...SUPER_ADMIN_ROLES]),
+  roleAuthorization([...ADMIN_ROLES]),
   getSchoolDashboard
 );
 

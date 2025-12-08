@@ -44,6 +44,7 @@ import {
   OTP_RESEND_MAX_ATTEMPTS,
   REDIS_EMAIL_VERIFICATION_PREFIX,
   REDIS_PASSWORD_RESET_PREFIX,
+  REDIS_PASSWORD_RESET_USER_ID_PREFIX,
 } from "../config/constants";
 
 // Type for Prisma Transaction Client
@@ -112,8 +113,7 @@ const getParent = async (
       }
       return existingUser.parent.id;
     }
-      throw new Error("Invalid parent credentials provided.");
-
+    throw new Error("Invalid parent credentials provided.");
   } else {
     throw new Error("Parent not found with the provided email or username.");
   }
@@ -992,12 +992,20 @@ const handleOTP = async ({
     type === "password_reset"
       ? REDIS_PASSWORD_RESET_PREFIX
       : REDIS_EMAIL_VERIFICATION_PREFIX;
-  const cacheKey = `${prefix}${userId}`;
+
+  const cacheKey = `${prefix}${type === "password_reset" ? otp : userId}`;
 
   const existingOTP = await getCache(cacheKey);
   if (existingOTP) await deleteCache(cacheKey);
 
   await setCache(cacheKey, otp, OTP_EXPIRY_SECONDS);
+  if (type === "password_reset") {
+    await setCache(
+      `${REDIS_PASSWORD_RESET_USER_ID_PREFIX}${otp}`,
+      userId,
+      OTP_EXPIRY_SECONDS
+    );
+  }
 
   notifyUser({
     userId,
@@ -1170,13 +1178,14 @@ export const resetPassword = async (
   try {
     const { otp, newPassword } = req.body;
 
-    const token = getDecodedTokenFromRequest(req);
-    if (!token) return handleError(res, "Invalid or expired token.", 400);
-    const userId = token.id;
-
-    const storedOTP = await getCache(`${REDIS_PASSWORD_RESET_PREFIX}${userId}`);
+    const storedOTP = await getCache(`${REDIS_PASSWORD_RESET_PREFIX}${otp}`);
     if (!storedOTP || storedOTP !== otp)
       return handleError(res, "Invalid or expired OTP.", 400);
+
+    const userId = await getCache(
+      `${REDIS_PASSWORD_RESET_USER_ID_PREFIX}${otp}`
+    );
+    if (!userId) return handleError(res, "Invalid or expired OTP.", 400);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
