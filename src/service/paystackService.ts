@@ -52,8 +52,8 @@ class PaystackService {
       return response.data;
     } catch (error: any) {
       logger.error(
-        "Paystack initialization error:",
-        error.response?.data || error.message
+        error.response?.data || error.message,
+        "Paystack initialization error:"
       );
       throw new Error(
         error.response?.data?.message || "Payment initialization failed"
@@ -75,8 +75,8 @@ class PaystackService {
       return response.data;
     } catch (error: any) {
       logger.error(
-        "Paystack verification error:",
-        error.response?.data || error.message
+        error.response?.data || error.message,
+        "Paystack verification error:"
       );
       throw new Error(
         error.response?.data?.message || "Payment verification failed"
@@ -97,8 +97,8 @@ class PaystackService {
       return response.data;
     } catch (error: any) {
       logger.error(
-        "Paystack transaction fetch error:",
-        error.response?.data || error.message
+        error.response?.data || error.message,
+        "Paystack transaction fetch error:"
       );
       throw new Error(
         error.response?.data?.message || "Failed to fetch transaction"
@@ -127,8 +127,8 @@ class PaystackService {
       return response.data;
     } catch (error: any) {
       logger.error(
-        "Paystack transactions list error:",
-        error.response?.data || error.message
+        error.response?.data || error.message,
+        "Paystack transactions list error:"
       );
       throw new Error(
         error.response?.data?.message || "Failed to fetch transactions"

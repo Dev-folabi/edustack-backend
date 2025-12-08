@@ -66,7 +66,7 @@ export const getStudentsBySchool = async (
           }),
           ...(name && { name: { contains: name, mode: "insensitive" } }),
           ...(admissionNumber && {
-            admission_number: parseInt(admissionNumber, 10),
+            admission_number: admissionNumber as string,
           }),
           ...(active !== undefined && { isActive: active === "true" }),
         },
@@ -147,7 +147,7 @@ export const getStudentsBySchool = async (
         dob: student?.dob,
         phone: student?.phone,
         address: student?.address,
-        admissionDate: student?.admission_date,
+        admission_date: student?.admission_date,
         religion: student?.religion,
         bloodGroup: student?.blood_group,
         fatherName: student?.father_name,
@@ -780,7 +780,7 @@ const _validateTransferPrerequisitesAndGetContext = async (
       },
     };
 
-  const activeSession = await findActiveSession(res);
+  const activeSession = await findActiveSession(res, toSchoolId);
 
   if (!activeSession)
     return {
@@ -882,6 +882,35 @@ export const transferStudent = async (
         },
         data: { schoolId: toSchoolId },
       });
+
+      // Update students with new schoolId and generate new admission numbers
+      for (const studentId of studentIds) {
+        // Find the last student for the target school to determine the next admission number
+        const lastStudent = await tx.student.findFirst({
+          where: { schoolId: toSchoolId },
+          orderBy: { createdAt: "desc" },
+          select: { admission_number: true },
+        });
+
+        let nextAdmissionNumber = 1;
+        if (lastStudent && lastStudent.admission_number) {
+          const lastNum = parseInt(lastStudent.admission_number, 10);
+          if (!isNaN(lastNum)) {
+            nextAdmissionNumber = lastNum + 1;
+          }
+        }
+        const admissionNumberString = nextAdmissionNumber
+          .toString()
+          .padStart(6, "0");
+
+        await tx.student.update({
+          where: { id: studentId },
+          data: {
+            schoolId: toSchoolId,
+            admission_number: admissionNumberString,
+          },
+        });
+      }
 
       await tx.studentEnrollment.createMany({
         data: studentIds.map((id) => ({
@@ -1014,13 +1043,23 @@ export const updateStudent = async (
       return handleError(res, "Student not found", 404);
     }
 
-    const { email, password, ...studentData } = req.body;
+    const { email, password, username, ...studentData } = req.body;
 
     const userUpdateData: any = {};
     const studentUpdateData: any = {};
 
+    if (username !== undefined && username !== existingStudent.user.username) {
+      const existingUser = await prisma.user.findUnique({
+        where: { username },
+      });
+      if (existingUser) {
+        return handleError(res, "Username already exists", 400);
+      }
+    }
+
     Object.assign(userUpdateData, {
       ...(email !== undefined && { email }),
+      ...(username !== undefined && { username }),
       ...(password !== undefined && {
         password: await bcrypt.hash(password, 10),
       }),

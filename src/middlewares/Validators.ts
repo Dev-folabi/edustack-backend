@@ -1217,7 +1217,7 @@ export const validatePromoteStudent = [
   body("sectionId")
     .if(body("isGraduate").equals("false"))
     .notEmpty()
-    .withMessage("Target Section ID is required") 
+    .withMessage("Target Section ID is required")
     .isString()
     .withMessage("Section ID must be a string")
     .isLength({ max: 50 })
@@ -1899,18 +1899,26 @@ export const createAndAssignInvoiceValidator = [
 
 // Payment Validators
 export const createPaymentValidator = [
-  body("invoiceId").isString().withMessage("Invalid invoice ID"),
-  body("studentId").isString().withMessage("Invalid student ID"),
+  body("studentInvoiceId")
+    .notEmpty()
+    .withMessage("Student invoice ID is required")
+    .isString()
+    .withMessage("Invalid student invoice ID"),
   body("amount")
+    .notEmpty()
+    .withMessage("Amount is required")
     .isFloat({ min: 0.01 })
     .withMessage("Amount must be greater than 0"),
   body("paymentMethod")
+    .notEmpty()
+    .withMessage("Payment method is required")
     .isIn(["CASH", "BANK_TRANSFER", "CARD", "MOBILE_MONEY", "CHEQUE"])
     .withMessage("Invalid payment method"),
-  body("transactionRef")
-    .optional()
-    .isLength({ min: 1, max: 100 })
-    .withMessage("Transaction reference must be between 1 and 100 characters"),
+  body("schoolId")
+    .notEmpty()
+    .withMessage("School ID is required")
+    .isString()
+    .withMessage("Invalid school ID"),
   handleValidationErrors,
 ];
 
@@ -2016,11 +2024,6 @@ export const updatePaymentGatewayValidator = [
   handleValidationErrors,
 ];
 
-// Common Validators
-export const idValidator = [
-  param("id").isString().withMessage("Invalid ID"),
-  handleValidationErrors,
-];
 
 export const financialReportValidator = [
   query("startDate")

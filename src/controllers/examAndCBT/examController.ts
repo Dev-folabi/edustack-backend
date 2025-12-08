@@ -119,7 +119,7 @@ export const updateExamStatus = async (
     }
 
     const updatedExam = await prisma.$transaction(async (tx) => {
-      let dataToUpdate: { status: string; endDate?: Date } = { status };
+      const dataToUpdate: { status: string; endDate?: Date } = { status };
 
       if (currentStatus === "Completed" && status === "Ongoing") {
         dataToUpdate.endDate = new Date(new Date().getTime() + 60 * 60 * 1000); // 1 hour from now

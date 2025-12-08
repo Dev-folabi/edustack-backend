@@ -1,13 +1,17 @@
 import cron from "node-cron";
 import prisma from "../prisma";
 import { notifyUser } from "../utils/notification";
-import { transitionOngoingToCompleted, transitionScheduledToOngoing } from "../service/examStatusScheduler";
+import {
+  transitionOngoingToCompleted,
+  transitionScheduledToOngoing,
+} from "../service/examStatusScheduler";
 import logger from "../utils/logger";
 
 /**
  * Asynchronously updates the status of academic terms based on the current date.
  * - Deactivates terms whose `end_date` has passed.
  * - Activates terms whose `start_date` has passed and `end_date` has not, and are currently inactive.
+ * - Automatically creates new enrollments for all enrolled students when a term activates.
  * Logs the count of activated and deactivated terms.
  */
 const updateTermStatuses = async () => {
@@ -24,6 +28,16 @@ const updateTermStatuses = async () => {
   });
   deactivatedCount = deactivatedResult.count;
 
+  // Get terms that will be activated (before updating them)
+  const termsToActivate = await prisma.term.findMany({
+    where: {
+      start_date: { lte: currentDate },
+      end_date: { gte: currentDate },
+      isActive: false,
+    },
+    select: { id: true, name: true, sessionId: true },
+  });
+
   const activatedResult = await prisma.term.updateMany({
     where: {
       start_date: { lte: currentDate },
@@ -34,6 +48,40 @@ const updateTermStatuses = async () => {
   });
   activatedCount = activatedResult.count;
 
+  // Transition students to newly activated terms
+  if (termsToActivate.length > 0) {
+    const { transitionStudentsToNewTerm } = await import(
+      "../service/enrollmentService"
+    );
+
+    for (const term of termsToActivate) {
+      logger.info(
+        { termId: term.id, termName: term.name, sessionId: term.sessionId },
+        "Transitioning students to newly activated term"
+      );
+
+      const result = await transitionStudentsToNewTerm(term.id);
+
+      if (result.success) {
+        logger.info(
+          {
+            termId: term.id,
+            termName: term.name,
+            transitioned: result.transitioned,
+            skipped: result.skipped,
+            errors: result.errors,
+          },
+          "Student transition completed for activated term"
+        );
+      } else {
+        logger.error(
+          { termId: term.id, termName: term.name, error: result.error },
+          "Failed to transition students for activated term"
+        );
+      }
+    }
+  }
+
   if (deactivatedCount > 0 || activatedCount > 0) {
     logger.info(
       { deactivatedCount, activatedCount },
@@ -41,6 +89,38 @@ const updateTermStatuses = async () => {
     );
   } else {
     logger.info("No term statuses needed updating by cron job."); // More accurate message
+  }
+};
+
+const updateOverdueInvoices = async () => {
+  const currentDate = new Date();
+  let updatedCount = 0;
+
+  const result = await prisma.studentInvoice.updateMany({
+    where: {
+      status: {
+        in: ["UNPAID"],
+      },
+      invoice: {
+        dueDate: {
+          lt: currentDate,
+        },
+      },
+    },
+    data: {
+      status: "OVERDUE",
+    },
+  });
+
+  updatedCount = result.count;
+
+  if (updatedCount > 0) {
+    logger.info(
+      { updatedCount },
+      "Overdue invoice statuses updated by cron job."
+    );
+  } else {
+    logger.info("No overdue invoices to update.");
   }
 };
 
@@ -53,6 +133,14 @@ cron.schedule("0 0 * * *", () => {
   logger.info("Running daily term status update cron job.");
   updateTermStatuses().catch((error) => {
     logger.error({ err: error }, "Error updating term statuses via cron job");
+  });
+
+  logger.info("Running daily overdue invoice update cron job.");
+  updateOverdueInvoices().catch((error) => {
+    logger.error(
+      { err: error },
+      "Error updating overdue invoices via cron job"
+    );
   });
 });
 

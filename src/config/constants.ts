@@ -21,6 +21,7 @@ export const REDIS_DENYLIST_PREFIX = "denylist_jti:";
 export const REDIS_RATE_LIMIT_PREFIX = "rate_limit:";
 export const REDIS_EMAIL_VERIFICATION_PREFIX = "email_verification_";
 export const REDIS_PASSWORD_RESET_PREFIX = "password_reset_";
+export const REDIS_PASSWORD_RESET_USER_ID_PREFIX = "password_reset_user_id_";
 
 // Default Pagination Values
 export const DEFAULT_PAGE_NUMBER = 1;

@@ -19,6 +19,7 @@ import resultsRoutes from "./examAndCbtRoutes/resultsRoutes";
 import psychomotorRoutes from "./examAndCbtRoutes/psychomotorRoutes";
 import reportRoutes from "./examAndCbtRoutes/reportRoutes";
 import accountingRoutes from "./accountingRoutes";
+import userRoutes from "./userRoutes";
 
 const router = express.Router();
 
@@ -44,5 +45,6 @@ router.use("/attendance", verifyToken, attendanceRoutes);
 router.use("/timetables", verifyToken, timetableRoutes);
 router.use("/exam", examRoutes);
 router.use("/accounting", accountingRoutes);
+router.use("/user", verifyToken, userRoutes);
 
 export default router;

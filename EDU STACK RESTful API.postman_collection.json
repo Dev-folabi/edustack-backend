@@ -2460,7 +2460,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n    \"success\": true,\n    \"message\": \"Students fetched successfully.\",\n    \"data\": {\n        \"totalItems\": 1,\n        \"totalPages\": 1,\n        \"currentPage\": 1,\n        \"prevPage\": null,\n        \"nextPage\": null,\n        \"itemPerPage\": 10,\n        \"data\": [\n            {\n                \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n                \"name\": \"New Student 2\",\n                \"admissionNumber\": 1,\n                \"email\": \"student2@example.com\",\n                \"username\": \"newstudent2\",\n                \"gender\": \"male\",\n                \"dob\": \"2011-01-01T00:00:00.000Z\",\n                \"phone\": \"123-456-7890\",\n                \"address\": \"123 Main St\",\n                \"admissionDate\": \"2023-09-01T00:00:00.000Z\",\n                \"religion\": \"None\",\n                \"isActive\": false,\n                \"parent\": {\n                    \"name\": \"Guardian Name\",\n                    \"email\": \"guardian2@example.com\",\n                    \"phone\": \"987-654-3210\"\n                }\n            }\n        ]\n    }\n}"
+              "body": "{\n    \"success\": true,\n    \"message\": \"Students fetched successfully.\",\n    \"data\": {\n        \"totalItems\": 1,\n        \"totalPages\": 1,\n        \"currentPage\": 1,\n        \"prevPage\": null,\n        \"nextPage\": null,\n        \"itemPerPage\": 10,\n        \"data\": [\n            {\n                \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n                \"name\": \"New Student 2\",\n                \"admissionNumber\": 1,\n                \"email\": \"student2@example.com\",\n                \"username\": \"newstudent2\",\n                \"gender\": \"male\",\n                \"dob\": \"2011-01-01T00:00:00.000Z\",\n                \"phone\": \"123-456-7890\",\n                \"address\": \"123 Main St\",\n                \"admission_date\": \"2023-09-01T00:00:00.000Z\",\n                \"religion\": \"None\",\n                \"isActive\": false,\n                \"parent\": {\n                    \"name\": \"Guardian Name\",\n                    \"email\": \"guardian2@example.com\",\n                    \"phone\": \"987-654-3210\"\n                }\n            }\n        ]\n    }\n}"
             }
           ]
         },
@@ -10267,7 +10267,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{auth_url}}/api/accounting/invoices?status=DRAFT",
+                  "raw": "{{auth_url}}/api/accounting/invoices",
                   "host": [
                     "{{auth_url}}"
                   ],
@@ -10279,7 +10279,8 @@
                   "query": [
                     {
                       "key": "status",
-                      "value": "DRAFT"
+                      "value": "UNPAID",
+                      "disabled": true
                     },
                     {
                       "key": "page",
@@ -10302,7 +10303,7 @@
                     "method": "GET",
                     "header": [],
                     "url": {
-                      "raw": "{{auth_url}}/api/accounting/invoices?status=DRAFT",
+                      "raw": "{{auth_url}}/api/accounting/invoices",
                       "host": [
                         "{{auth_url}}"
                       ],
@@ -10310,12 +10311,6 @@
                         "api",
                         "accounting",
                         "invoices"
-                      ],
-                      "query": [
-                        {
-                          "key": "status",
-                          "value": "DRAFT"
-                        }
                       ]
                     }
                   },
@@ -10329,7 +10324,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n    \"success\": true,\n    \"message\": \"Invoices retrieved successfully\",\n    \"data\": {\n        \"totalItems\": 1,\n        \"totalPages\": 1,\n        \"currentPage\": 1,\n        \"prevPage\": null,\n        \"nextPage\": null,\n        \"itemPerPage\": 10,\n        \"data\": [\n            {\n                \"id\": \"clxkzjwz1000hl0v8g1h3f7em\",\n                \"title\": \"Term 1 Fees\",\n                \"description\": \"First term school fees\",\n                \"dueDate\": \"2023-10-31T23:59:59.000Z\",\n                \"status\": \"DRAFT\",\n                \"totalAmount\": 50000,\n                \"paidAmount\": 0,\n                \"balance\": 50000\n            }\n        ]\n    }\n}"
+                  "body": "{\n    \"success\": true,\n    \"message\": \"Invoices retrieved successfully\",\n    \"data\": {\n        \"totalItems\": 1,\n        \"totalPages\": 1,\n        \"currentPage\": 1,\n        \"prevPage\": null,\n        \"nextPage\": null,\n        \"itemPerPage\": 10,\n        \"data\": [\n            {\n                \"id\": \"clxkzjwz1000hl0v8g1h3f7em\",\n                \"title\": \"Term 1 Fees\",\n                \"description\": \"First term school fees\",\n                \"dueDate\": \"2023-10-31T23:59:59.000Z\",\n                \"totalAmount\": 50000,\n                \"amountPaid\": 0,\n                \"amountDue\": 50000,\n                \"status\": \"UNPAID\",\n                \"studentInvoicesCount\": 1\n            }\n        ]\n    }\n}"
                 },
                 {
                   "name": "Error - No Invoices Found",
@@ -10717,7 +10712,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"invoiceId\": \"clxkzjwz1000hl0v8g1h3f7em\",\n    \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n    \"amount\": 25000,\n    \"paymentMethod\": \"CASH\",\n    \"transactionRef\": \"CASH-001\"\n}",
+                  "raw": "{\n    \"studentInvoiceId\": \"clxkzjwz1000hl0v8g1h3f7em\",\n    \"amount\": 25000,\n    \"paymentMethod\": \"CASH\",\n    \"transactionRef\": \"CASH-001\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -10774,7 +10769,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n    \"success\": true,\n    \"message\": \"Payment created successfully\",\n    \"data\": {\n        \"id\": \"clxkzjwz2000jl0v8g1h3f7eo\",\n        \"invoiceId\": \"clxkzjwz1000hl0v8g1h3f7em\",\n        \"studentId\": \"clxkzjwz0000al0v8g1h3f7ef\",\n        \"amount\": 25000,\n        \"paymentMethod\": \"CASH\",\n        \"transactionRef\": \"CASH-001\",\n        \"status\": \"COMPLETED\"\n    }\n}"
+                  "body": "{\n    \"success\": true,\n    \"message\": \"Payment created successfully\",\n    \"data\": {\n        \"id\": \"clxkzjwz2000jl0v8g1h3f7eo\",\n        \"studentInvoiceId\": \"clxkzjwz1000hl0v8g1h3f7em\",\n        \"amount\": 25000,\n        \"paymentMethod\": \"CASH\",\n        \"transactionRef\": \"CASH-001\",\n        \"status\": \"COMPLETED\"\n    }\n}"
                 },
                 {
                   "name": "Error - Invalid Input",

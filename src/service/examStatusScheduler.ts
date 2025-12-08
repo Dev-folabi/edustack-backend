@@ -28,7 +28,7 @@ export const transitionScheduledToOngoing = async () => {
       logger.info("No exams to start at this moment.");
     }
   } catch (error) {
-    logger.error("Error transitioning scheduled exams to ongoing:", error);
+    logger.error({ err: error }, "Error transitioning scheduled exams to ongoing:");
   }
 };
 
@@ -59,6 +59,6 @@ export const transitionOngoingToCompleted = async () => {
       logger.info("No exams to complete at this moment.");
     }
   } catch (error) {
-    logger.error("Error transitioning ongoing exams to completed:", error);
+    logger.error({ err: error }, "Error transitioning ongoing exams to completed:");
   }
 };

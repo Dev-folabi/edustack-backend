@@ -45,9 +45,8 @@ export interface CreateAndAssignInvoiceRequest {
 }
 
 export interface CreatePaymentRequest {
-  invoiceId: string;
+  studentInvoiceId: string;
   schoolId: string;
-  studentId: string;
   amount: number;
   paymentMethod: "CASH" | "BANK_TRANSFER" | "CARD" | "MOBILE_MONEY" | "CHEQUE";
   transactionRef?: string;
@@ -98,9 +97,13 @@ export interface CreatePaymentGatewayRequest {
 }
 
 export interface UpdatePaymentGatewayRequest {
-  name?: string;
+  provider?: string;
+  publicKey?: string;
+  secretKey?: string;
+  webhookUrl?: string;
+  callbackUrl?: string;
+  merchantId?: string;
   isActive?: boolean;
-  config?: Record<string, any>;
 }
 
 export interface FinancialReportQuery {

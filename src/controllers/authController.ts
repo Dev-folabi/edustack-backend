@@ -44,6 +44,7 @@ import {
   OTP_RESEND_MAX_ATTEMPTS,
   REDIS_EMAIL_VERIFICATION_PREFIX,
   REDIS_PASSWORD_RESET_PREFIX,
+  REDIS_PASSWORD_RESET_USER_ID_PREFIX,
 } from "../config/constants";
 
 // Type for Prisma Transaction Client
@@ -111,9 +112,8 @@ const getParent = async (
         throw new Error("User exists but is not registered as a parent.");
       }
       return existingUser.parent.id;
-    } else {
-      throw new Error("Invalid parent credentials provided.");
     }
+    throw new Error("Invalid parent credentials provided.");
   } else {
     throw new Error("Parent not found with the provided email or username.");
   }
@@ -161,16 +161,6 @@ const createParentAccount = async (
   return parentAccount.id;
 };
 
-/**
- * Creates a new Student profile and their initial enrollment record within a Prisma transaction.
- * @param tx - Prisma transactional client.
- * @param userId - The ID of the User record for the student.
- * @param parentId - The ID of the linked Parent profile.
- * @param studentData - Object containing student-specific details.
- * @param session - The active academic session object, must include ID.
- * @param termId - The ID of the active term within the session.
- * @returns The newly created Student object.
- */
 const _createStudentAndEnrollment = async (
   tx: PrismaTransactionClient,
   isAdminAction: boolean,
@@ -178,7 +168,8 @@ const _createStudentAndEnrollment = async (
   parentId: string,
   studentData: any,
   session: { id: string },
-  termId: string
+  termId: string,
+  schoolId: string // Added schoolId parameter
 ) => {
   const {
     dob,
@@ -191,10 +182,30 @@ const _createStudentAndEnrollment = async (
     ...studentDataWithoutId
   } = studentData;
 
+  // Generate admission number
+  // Find the last student for this school to determine the next admission number
+  const lastStudent = await tx.student.findFirst({
+    where: { schoolId },
+    orderBy: { createdAt: "desc" }, // Order by creation time to get the latest
+    select: { admission_number: true },
+  });
+
+  let nextAdmissionNumber = 1;
+  if (lastStudent && lastStudent.admission_number) {
+    const lastNum = parseInt(lastStudent.admission_number, 10);
+    if (!isNaN(lastNum)) {
+      nextAdmissionNumber = lastNum + 1;
+    }
+  }
+
+  const admissionNumberString = nextAdmissionNumber.toString().padStart(6, "0");
+
   const student = await tx.student.create({
     data: {
       userId,
       parentId,
+      schoolId, // Set schoolId
+      admission_number: admissionNumberString, // Set generated admission number
       dob: new Date(dob),
       admission_date: admission_date ? new Date(admission_date) : new Date(),
       isActive: isAdminAction ? isActive : false,
@@ -263,7 +274,8 @@ const _createStudentUserAndDependenciesInTransaction = async (
     parentId,
     studentData,
     session,
-    termId
+    termId,
+    schoolId // Pass schoolId
   );
   return { user, student };
 };
@@ -626,7 +638,7 @@ export const studentSignUp = async (
     if (!section)
       return handleError(res, "Section not found in the specified class.", 404);
 
-    const activeSession = await findActiveSession(res);
+    const activeSession = await findActiveSession(res, school.id);
     if (!activeSession) return handleError(res, "No active session found", 400);
 
     const activeTerm = activeSession.terms.find((term) => term.isActive);
@@ -757,8 +769,16 @@ export const userSignIn = async (
           },
         },
         staff: true,
-        student: true,
-        parent: true,
+        student: {
+          include: { student_enrolled: { where: { status: "enrolled" } } },
+        },
+        parent: {
+          include: {
+            students: {
+              include: { student_enrolled: { where: { status: "enrolled" } } },
+            },
+          },
+        },
         password: true,
       },
     });
@@ -972,12 +992,20 @@ const handleOTP = async ({
     type === "password_reset"
       ? REDIS_PASSWORD_RESET_PREFIX
       : REDIS_EMAIL_VERIFICATION_PREFIX;
-  const cacheKey = `${prefix}${userId}`;
+
+  const cacheKey = `${prefix}${type === "password_reset" ? otp : userId}`;
 
   const existingOTP = await getCache(cacheKey);
   if (existingOTP) await deleteCache(cacheKey);
 
   await setCache(cacheKey, otp, OTP_EXPIRY_SECONDS);
+  if (type === "password_reset") {
+    await setCache(
+      `${REDIS_PASSWORD_RESET_USER_ID_PREFIX}${otp}`,
+      userId,
+      OTP_EXPIRY_SECONDS
+    );
+  }
 
   notifyUser({
     userId,
@@ -1150,13 +1178,14 @@ export const resetPassword = async (
   try {
     const { otp, newPassword } = req.body;
 
-    const token = getDecodedTokenFromRequest(req);
-    if (!token) return handleError(res, "Invalid or expired token.", 400);
-    const userId = token.id;
-
-    const storedOTP = await getCache(`${REDIS_PASSWORD_RESET_PREFIX}${userId}`);
+    const storedOTP = await getCache(`${REDIS_PASSWORD_RESET_PREFIX}${otp}`);
     if (!storedOTP || storedOTP !== otp)
       return handleError(res, "Invalid or expired OTP.", 400);
+
+    const userId = await getCache(
+      `${REDIS_PASSWORD_RESET_USER_ID_PREFIX}${otp}`
+    );
+    if (!userId) return handleError(res, "Invalid or expired OTP.", 400);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
