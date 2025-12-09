@@ -809,14 +809,14 @@ export const userSignIn = async (
       }
     }
 
-    if (!user.hasVerifiedEmail && !user.isSuperAdmin && !user.student) {
-      return handleError(
-        res,
-        "Your email is not verified, please verify your email first.",
-        401,
-        { userId: user.id }
-      );
-    }
+    // if (!user.hasVerifiedEmail && !user.isSuperAdmin && !user.student) {
+    //   return handleError(
+    //     res,
+    //     "Your email is not verified, please verify your email first.",
+    //     401,
+    //     { userId: user.id }
+    //   );
+    // }
 
     const expire =
       user.userSchools.some(
