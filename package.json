@@ -14,7 +14,12 @@
     "pgm-dev": "prisma migrate dev",
     "pm": "prisma migrate deploy",
     "pm-studio": "prisma studio",
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:query": "npx ts-node prisma/query-existing-data.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
