@@ -15,7 +15,7 @@ import {
 } from "../../middlewares/Validators";
 import { studentSignUp } from "../../controllers/authController";
 import { roleAuthorization } from "../../middlewares/authorization";
-import { ADMIN_ROLES, TEACHER_ROLES } from "../../config/constants";
+import { ADMIN_ROLES, FINANCE_ROLES, TEACHER_ROLES } from "../../config/constants";
 
 const router = express.Router();
 
@@ -46,13 +46,13 @@ router.get(
 );
 router.get(
   "/:schoolId/all",
-  roleAuthorization([...TEACHER_ROLES]),
+  roleAuthorization([...TEACHER_ROLES, ...FINANCE_ROLES]),
   getStudentsBySchool
 );
 
 router.get(
   "/:studentId",
-  roleAuthorization([...TEACHER_ROLES]),
+  roleAuthorization([...TEACHER_ROLES, ...FINANCE_ROLES]),
   getStudentDetails
 );
 router.put(
