@@ -181,6 +181,12 @@ async function queryExistingData() {
     console.log(
       `  - ${qb.name} (ID: ${qb.id}) | Questions: ${qb.questions.length}`
     );
+    if (qb.questions.length > 0) {
+      const q = qb.questions[0];
+      console.log(`    Sample Question: ${q.questionText}`);
+      console.log(`    Type: ${q.type}`);
+      console.log(`    Options:`, q.options);
+    }
   });
 
   // 13. Timetables

@@ -131,6 +131,457 @@ function generatePaymentNumber(year: number, index: number): string {
   return `PAY-${year}-${String(index).padStart(6, "0")}`;
 }
 
+// Helper function to get realistic questions for subjects
+function getQuestionsForSubject(subjectName: string): any[] {
+  const questions: any[] = [];
+
+  switch (subjectName) {
+    case "Basic Science":
+      questions.push(
+        {
+          type: QuestionType.MCQ,
+          text: "What is the unit of force?",
+          options: ["Newton", "Joule", "Watt", "Pascal"],
+          answer: "Newton",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which planet is known as the Red Planet?",
+          options: ["Venus", "Mars", "Jupiter", "Saturn"],
+          answer: "Mars",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "What is the chemical symbol for Water?",
+          options: ["H2O", "CO2", "O2", "NaCl"],
+          answer: "H2O",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which organ pumps blood in the body?",
+          options: ["Liver", "Heart", "Brain", "Kidney"],
+          answer: "Heart",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "What gas do plants absorb from the atmosphere?",
+          options: ["Oxygen", "Carbon Dioxide", "Nitrogen", "Hydrogen"],
+          answer: "Carbon Dioxide",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "Water boils at 100 degrees Celsius.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "The sun revolves around the earth.",
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "Humans have 46 chromosomes.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "Sound travels faster in vacuum than in air.",
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The chemical symbol for Gold is ____.",
+          options: null,
+          answer: "Au",
+          marks: 2,
+          diff: DifficultyLevel.Hard,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The hardest natural substance is ____.",
+          options: null,
+          answer: "Diamond",
+          marks: 2,
+          diff: DifficultyLevel.Hard,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "Photosynthesis takes place in the ____ of a plant.",
+          options: null,
+          answer: "Leaves",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The force that pulls objects towards the earth is ____.",
+          options: null,
+          answer: "Gravity",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        }
+      );
+      break;
+    case "Social Studies":
+      questions.push(
+        {
+          type: QuestionType.MCQ,
+          text: "What is the capital of Nigeria?",
+          options: ["Lagos", "Abuja", "Kano", "Port Harcourt"],
+          answer: "Abuja",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Democracy is a government of the people, by the people, and for the ____.",
+          options: ["Leaders", "People", "Military", "Rich"],
+          answer: "People",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which of these is NOT a cardinal point?",
+          options: ["North", "South", "Center", "West"],
+          answer: "Center",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "The coat of arms of Nigeria has an eagle mounted on a ____.",
+          options: ["White Horse", "Black Shield", "Green Wreath", "Red Band"],
+          answer: "Black Shield",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Who is the current president of Nigeria?",
+          options: [
+            "Bola Ahmed Tinubu",
+            "Muhammadu Buhari",
+            "Goodluck Jonathan",
+            "Olusegun Obasanjo",
+          ],
+          answer: "Bola Ahmed Tinubu",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "Nigeria became independent in 1960.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "The Niger River is the longest river in Nigeria.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "Lagos is the capital of Nigeria.",
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "There are 36 states in Nigeria.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The colors of the Nigerian flag are Green and ____.",
+          options: null,
+          answer: "White",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The giant of Africa is a nickname for ____.",
+          options: null,
+          answer: "Nigeria",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "A nuclear family consists of father, mother and ____.",
+          options: null,
+          answer: "Children",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The currency used in Nigeria is ____.",
+          options: null,
+          answer: "Naira",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        }
+      );
+      break;
+    case "Computer Studies":
+      questions.push(
+        {
+          type: QuestionType.MCQ,
+          text: "What does CPU stand for?",
+          options: [
+            "Central Processing Unit",
+            "Central Power Unit",
+            "Computer Power Unit",
+            "Central Process Unit",
+          ],
+          answer: "Central Processing Unit",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which of these is an input device?",
+          options: ["Monitor", "Printer", "Mouse", "Speaker"],
+          answer: "Mouse",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which key is used to delete characters to the left of the cursor?",
+          options: ["Delete", "Backspace", "Shift", "Enter"],
+          answer: "Backspace",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "The brain of the computer is the ____.",
+          options: ["Monitor", "Keyboard", "CPU", "Mouse"],
+          answer: "CPU",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: "Which of these is an operating system?",
+          options: ["Google Chrome", "Microsoft Word", "Windows", "Python"],
+          answer: "Windows",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "A keyboard is an output device.",
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "RAM stores data permanently.",
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "A virus can damage your computer.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: "The internet is a global network of computers.",
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "RAM stands for Random ____ Memory.",
+          options: null,
+          answer: "Access",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "ROM stands for Read ____ Memory.",
+          options: null,
+          answer: "Only",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "WWW stands for World Wide ____.",
+          options: null,
+          answer: "Web",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: "The physical parts of a computer are called ____.",
+          options: null,
+          answer: "Hardware",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        }
+      );
+      break;
+    default:
+      // Generic questions for other subjects
+      questions.push(
+        {
+          type: QuestionType.MCQ,
+          text: `What is a key concept in ${subjectName}?`,
+          options: ["Concept A", "Concept B", "Concept C", "Concept D"],
+          answer: "Concept A",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: `Which tool is used in ${subjectName}?`,
+          options: ["Tool X", "Tool Y", "Tool Z", "Tool W"],
+          answer: "Tool X",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: `Who is a famous figure in ${subjectName}?`,
+          options: ["Person A", "Person B", "Person C", "Person D"],
+          answer: "Person A",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: `What is the primary goal of ${subjectName}?`,
+          options: ["Goal 1", "Goal 2", "Goal 3", "Goal 4"],
+          answer: "Goal 1",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.MCQ,
+          text: `Which term is associated with ${subjectName}?`,
+          options: ["Term 1", "Term 2", "Term 3", "Term 4"],
+          answer: "Term 1",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: `${subjectName} is important for development.`,
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: `${subjectName} involves practical skills.`,
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: `${subjectName} is only theoretical.`,
+          options: ["True", "False"],
+          answer: "False",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.TrueFalse,
+          text: `Everyone should learn ${subjectName}.`,
+          options: ["True", "False"],
+          answer: "True",
+          marks: 1,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: `${subjectName} helps in ____ thinking.`,
+          options: null,
+          answer: "Critical",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: `The study of ${subjectName} began in the ____ century.`,
+          options: null,
+          answer: "19th",
+          marks: 2,
+          diff: DifficultyLevel.Hard,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: `One benefit of ${subjectName} is ____.`,
+          options: null,
+          answer: "Knowledge",
+          marks: 2,
+          diff: DifficultyLevel.Easy,
+        },
+        {
+          type: QuestionType.FillInBlanks,
+          text: `____ is a major topic in ${subjectName}.`,
+          options: null,
+          answer: "Topic X",
+          marks: 2,
+          diff: DifficultyLevel.Medium,
+        }
+      );
+  }
+  return questions;
+}
+
 async function main() {
   console.log("🌱 Starting comprehensive database seeding...\n");
 
@@ -639,8 +1090,15 @@ async function main() {
   const questionBanks: QuestionBank[] = [];
   for (let i = 0; i < Math.min(5, newSubjects.length); i++) {
     const subject = newSubjects[i];
-    const qb = await prisma.questionBank.create({
-      data: {
+    const qb = await prisma.questionBank.upsert({
+      where: {
+        subjectId_name: {
+          subjectId: subject.id,
+          name: `${subject.name} - Grade 1 Question Bank`,
+        },
+      },
+      update: {},
+      create: {
         subjectId: subject.id,
         name: `${subject.name} - Grade 1 Question Bank`,
         description: `Comprehensive question bank for ${subject.name}`,
@@ -649,68 +1107,22 @@ async function main() {
     });
     questionBanks.push(qb);
 
+    // Delete existing questions to ensure clean state (removes old bad data)
+    await prisma.question.deleteMany({ where: { bankId: qb.id } });
+
     // Create questions for each bank
     const questions: Prisma.QuestionCreateManyInput[] = [];
+    const subjectQuestions = getQuestionsForSubject(subject.name);
 
-    // MCQ Questions
-    for (let j = 0; j < 5; j++) {
+    for (const q of subjectQuestions) {
       questions.push({
         bankId: qb.id,
-        type: QuestionType.MCQ,
-        questionText: `${subject.name} MCQ Question ${j + 1}: What is the correct answer?`,
-        options: JSON.stringify([
-          "Option A",
-          "Option B",
-          "Option C",
-          "Option D",
-        ]),
-        correctAnswer: JSON.stringify("Option A"),
-        marks: 2,
-        difficulty:
-          j < 2
-            ? DifficultyLevel.Easy
-            : j < 4
-              ? DifficultyLevel.Medium
-              : DifficultyLevel.Hard,
-        createdById: EXISTING.staff.teacher,
-      });
-    }
-
-    // True/False Questions
-    for (let j = 0; j < 3; j++) {
-      questions.push({
-        bankId: qb.id,
-        type: QuestionType.TrueFalse,
-        questionText: `${subject.name} True/False Question ${j + 1}: Is this statement correct?`,
-        options: JSON.stringify(["True", "False"]),
-        correctAnswer: JSON.stringify(j % 2 === 0 ? "True" : "False"),
-        marks: 1,
-        difficulty: DifficultyLevel.Easy,
-        createdById: EXISTING.staff.teacher,
-      });
-    }
-
-    // Fill in the blanks
-    for (let j = 0; j < 3; j++) {
-      questions.push({
-        bankId: qb.id,
-        type: QuestionType.FillInBlanks,
-        questionText: `${subject.name} Fill in the blank ${j + 1}: The _____ is very important.`,
-        correctAnswer: JSON.stringify("answer"),
-        marks: 2,
-        difficulty: DifficultyLevel.Medium,
-        createdById: EXISTING.staff.teacher,
-      });
-    }
-
-    // Essay Questions
-    for (let j = 0; j < 2; j++) {
-      questions.push({
-        bankId: qb.id,
-        type: QuestionType.Essay,
-        questionText: `${subject.name} Essay Question ${j + 1}: Explain the importance of this topic in 100 words.`,
-        marks: 10,
-        difficulty: DifficultyLevel.Hard,
+        type: q.type,
+        questionText: q.text,
+        options: q.options, // Pass object/array directly, Prisma handles JSON serialization
+        correctAnswer: q.answer, // Pass object/string directly
+        marks: q.marks,
+        difficulty: q.diff,
         createdById: EXISTING.staff.teacher,
       });
     }
